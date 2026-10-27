@@ -4,8 +4,6 @@
 -- Se puede ejecutar más de una vez sin problema.
 -- =============================================================
 
-create extension if not exists pgcrypto;
-
 -- Hogares --------------------------------------------------------
 create table if not exists public.hogares (
   id uuid primary key default gen_random_uuid(),
@@ -174,7 +172,8 @@ begin
     raise exception 'Ya perteneces a un hogar';
   end if;
   loop
-    v_codigo := upper(substr(encode(gen_random_bytes(6), 'hex'), 1, 6));
+    -- gen_random_uuid() es de Postgres; no depende de extensiones.
+    v_codigo := upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 6));
     exit when not exists (select 1 from hogares where codigo = v_codigo);
   end loop;
   insert into hogares (nombre, codigo, moneda, creado_por)
