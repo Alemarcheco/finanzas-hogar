@@ -1,6 +1,6 @@
 # Finanzas del Hogar
 
-App Flutter (Android e iOS) para llevar las cuentas de casa entre varias personas.
+App Flutter (Android, iPhone por el navegador e iOS) para llevar las cuentas de casa entre varias personas.
 Cada persona entra con su propia cuenta desde su teléfono y todo se suma en el mismo hogar.
 
 - **Resumen del mes**: lo que queda libre, ingresos, gastos, lo ahorrado y el ahorro acumulado.
@@ -18,7 +18,15 @@ Cada persona entra con su propia cuenta desde su teléfono y todo se suma en el 
 4. En **Project Settings → API Keys / Data API** copia la *Project URL* y la clave *anon* / *publishable*
    y ponlas en [`lib/config.dart`](lib/config.dart).
 
-## Compilar
+## Versión web (iPhone)
+
+La misma app se publica como página web en GitHub Pages en cada cambio de `main`
+(`https://<usuario>.github.io/finanzas-hogar/`). Usa el mismo servidor, así que Android y web ven el mismo hogar.
+En el iPhone se abre con Safari y se añade a la pantalla de inicio (Compartir → Añadir a pantalla de inicio).
+
+Para activarlo una vez: **Settings → Pages → Source: GitHub Actions** (el repositorio debe ser público).
+
+## Compilar APK
 
 GitHub Actions compila el APK en cada cambio de `main` (pestaña **Actions → Compilar APK → Artifacts**).
 
