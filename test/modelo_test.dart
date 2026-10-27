@@ -1,6 +1,7 @@
 import 'package:finanzas_hogar/formato.dart';
-import 'package:finanzas_hogar/main.dart';
+import 'package:finanzas_hogar/pantallas/login.dart';
 import 'package:finanzas_hogar/modelo.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Movimiento mov(String usuario, TipoMovimiento tipo, String categoria, double monto, DateTime fecha) => Movimiento(
@@ -142,8 +143,9 @@ void main() {
     expect(visa.proximoPago(DateTime(2026, 11, 1)), DateTime(2026, 11, 30));
   });
 
-  testWidgets('sin servidor configurado avisa en vez de fallar', (tester) async {
-    await tester.pumpWidget(const FinanzasHogarApp());
-    expect(find.textContaining('Supabase'), findsOneWidget);
+  testWidgets('la pantalla de entrada se muestra', (tester) async {
+    await tester.pumpWidget(const MaterialApp(home: PantallaLogin()));
+    expect(find.text('Finanzas del Hogar'), findsOneWidget);
+    expect(find.text('Crear cuenta'), findsWidgets);
   });
 }
