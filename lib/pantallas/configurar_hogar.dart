@@ -23,8 +23,6 @@ class _PantallaConfigurarHogarState extends State<PantallaConfigurarHogar> {
   bool _ocupado = false;
   String? _error;
 
-
-
   Future<void> _continuar() async {
     final miNombre = _miNombre.text.trim();
     if (miNombre.isEmpty) {
@@ -58,9 +56,7 @@ class _PantallaConfigurarHogarState extends State<PantallaConfigurarHogar> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Tu hogar'),
-        actions: [
-          TextButton(onPressed: () => supabase.auth.signOut(), child: const Text('Salir')),
-        ],
+        actions: [TextButton(onPressed: () => supabase.auth.signOut(), child: const Text('Salir'))],
       ),
       body: ListView(
         padding: const EdgeInsets.all(24),
@@ -90,8 +86,10 @@ class _PantallaConfigurarHogarState extends State<PantallaConfigurarHogar> {
           ),
           const SizedBox(height: 20),
           if (_unirse) ...[
-            Text('Pide el código a quien creó el hogar. Lo encuentra en la pestaña "Hogar" de su app.',
-                style: TextStyle(color: colores.onSurfaceVariant)),
+            Text(
+              'Pide el código a quien creó el hogar. Lo encuentra en la pestaña "Hogar" de su app.',
+              style: TextStyle(color: colores.onSurfaceVariant),
+            ),
             const SizedBox(height: 12),
             TextField(
               controller: _codigo,
@@ -99,8 +97,10 @@ class _PantallaConfigurarHogarState extends State<PantallaConfigurarHogar> {
               decoration: const InputDecoration(labelText: 'Código del hogar', border: OutlineInputBorder()),
             ),
           ] else ...[
-            Text('Crea el hogar y después comparte el código con tu pareja para que se una desde su teléfono.',
-                style: TextStyle(color: colores.onSurfaceVariant)),
+            Text(
+              'Crea el hogar y después comparte el código con tu pareja para que se una desde su teléfono.',
+              style: TextStyle(color: colores.onSurfaceVariant),
+            ),
             const SizedBox(height: 12),
             TextField(
               controller: _nombreHogar,
@@ -119,10 +119,7 @@ class _PantallaConfigurarHogarState extends State<PantallaConfigurarHogar> {
               ],
             ),
           ],
-          if (_error != null) ...[
-            const SizedBox(height: 16),
-            Text(_error!, style: TextStyle(color: colores.error)),
-          ],
+          if (_error != null) ...[const SizedBox(height: 16), Text(_error!, style: TextStyle(color: colores.error))],
           const SizedBox(height: 24),
           FilledButton(
             onPressed: _ocupado ? null : _continuar,

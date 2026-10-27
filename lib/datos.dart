@@ -40,11 +40,13 @@ class DatosHogar extends ChangeNotifier {
   Hogar? hogar;
   List<Miembro> miembros = [];
   List<Movimiento> movimientos = [];
+  List<Plan> planes = [];
+  List<Deuda> deudas = [];
+  List<OperacionDeuda> operacionesDeuda = [];
   bool cargando = true;
   String? error;
 
-  StreamSubscription<List<Map<String, dynamic>>>? _subMovimientos;
-  StreamSubscription<List<Map<String, dynamic>>>? _subMiembros;
+  final _suscripciones = <StreamSubscription<List<Map<String, dynamic>>>>[];
 
   /// Busca el hogar del usuario. Si no tiene, [hogar] queda en null.
   Future<void> cargar() async {
@@ -70,12 +72,28 @@ class DatosHogar extends ChangeNotifier {
 
   void _escuchar(String hogarId) {
     _cancelar();
-    _subMiembros = supabase
-        .from('miembros')
-        .stream(primaryKey: ['usuario_id'])
-        .eq('hogar_id', hogarId)
-        .order('unido_en', ascending: true)
-        .listen((filas) {
+    void escuchar(String tabla, String clave, String orden, void Function(List<Map<String, dynamic>>) alRecibir) {
+      _suscripciones.add(
+        supabase
+            .from(tabla)
+            .stream(primaryKey: [clave])
+            .eq('hogar_id', hogarId)
+            .order(orden, ascending: true)
+            .listen(
+              (filas) {
+                alRecibir(filas);
+                error = null;
+                notifyListeners();
+              },
+              onError: (e) {
+                error = mensajeDeError(e);
+                notifyListeners();
+              },
+            ),
+      );
+    }
+
+    escuchar('miembros', 'usuario_id', 'unido_en', (filas) {
       miembros = [
         for (var i = 0; i < filas.length; i++)
           Miembro(
@@ -84,43 +102,38 @@ class DatosHogar extends ChangeNotifier {
             color: coloresPersona[i % coloresPersona.length],
           ),
       ];
-      notifyListeners();
-    }, onError: (e) {
-      error = mensajeDeError(e);
-      notifyListeners();
     });
-    _subMovimientos = supabase
-        .from('movimientos')
-        .stream(primaryKey: ['id'])
-        .eq('hogar_id', hogarId)
-        .order('fecha', ascending: false)
-        .listen((filas) {
+    escuchar('movimientos', 'id', 'fecha', (filas) {
       movimientos = filas.map(Movimiento.desdeMapa).toList()
         ..sort((a, b) {
           final porFecha = b.fecha.compareTo(a.fecha);
           return porFecha != 0 ? porFecha : b.id.compareTo(a.id);
         });
-      error = null;
-      notifyListeners();
-    }, onError: (e) {
-      error = mensajeDeError(e);
-      notifyListeners();
+    });
+    escuchar('planes', 'id', 'creado_en', (filas) => planes = filas.map(Plan.desdeMapa).toList());
+    escuchar('deudas', 'id', 'creado_en', (filas) => deudas = filas.map(Deuda.desdeMapa).toList());
+    escuchar('operaciones_deuda', 'id', 'fecha', (filas) {
+      operacionesDeuda = filas.map(OperacionDeuda.desdeMapa).toList()..sort((a, b) => b.fecha.compareTo(a.fecha));
     });
   }
 
   Future<void> _cancelar() async {
-    await _subMovimientos?.cancel();
-    await _subMiembros?.cancel();
-    _subMovimientos = null;
-    _subMiembros = null;
+    final viejas = [..._suscripciones];
+    _suscripciones.clear();
+    for (final s in viejas) {
+      await s.cancel();
+    }
     miembros = [];
     movimientos = [];
+    planes = [];
+    deudas = [];
+    operacionesDeuda = [];
   }
 
   Miembro miembro(String usuarioId) => miembros.firstWhere(
-        (m) => m.usuarioId == usuarioId,
-        orElse: () => Miembro(usuarioId: usuarioId, nombre: 'Antiguo miembro', color: const Color(0xFF9E9E9E)),
-      );
+    (m) => m.usuarioId == usuarioId,
+    orElse: () => Miembro(usuarioId: usuarioId, nombre: 'Antiguo miembro', color: const Color(0xFF9E9E9E)),
+  );
 
   Future<void> crearHogar(String nombre, String moneda, String miNombre) async {
     await supabase.rpc('crear_hogar', params: {'p_nombre': nombre, 'p_moneda': moneda, 'p_mi_nombre': miNombre});
@@ -153,6 +166,7 @@ class DatosHogar extends ChangeNotifier {
     required double monto,
     required String nota,
     required DateTime fecha,
+    String? deudaId,
   }) async {
     final datos = {
       'tipo': tipo.name,
@@ -160,6 +174,7 @@ class DatosHogar extends ChangeNotifier {
       'monto': monto,
       'nota': nota,
       'fecha': fechaIso(fecha),
+      'deuda_id': tipo == TipoMovimiento.gasto ? deudaId : null,
     };
     if (id == null) {
       await supabase.from('movimientos').insert({...datos, 'hogar_id': hogar!.id, 'usuario_id': miUsuarioId});
@@ -170,6 +185,122 @@ class DatosHogar extends ChangeNotifier {
 
   Future<void> borrarMovimiento(String id) async {
     await supabase.from('movimientos').delete().eq('id', id);
+  }
+
+  double saldoDeuda(Deuda d) => d.saldo(movimientos, operacionesDeuda);
+
+  Deuda? deuda(String? id) {
+    for (final d in deudas) {
+      if (d.id == id) return d;
+    }
+    return null;
+  }
+
+  Future<void> guardarPlan({
+    String? id,
+    required DateTime mes,
+    required TipoMovimiento tipo,
+    required String categoria,
+    required double monto,
+    required String nota,
+  }) async {
+    final datos = {
+      'mes': fechaIso(DateTime(mes.year, mes.month)),
+      'tipo': tipo.name,
+      'categoria': categoria,
+      'monto': monto,
+      'nota': nota,
+    };
+    if (id == null) {
+      await supabase.from('planes').insert({...datos, 'hogar_id': hogar!.id, 'usuario_id': miUsuarioId});
+    } else {
+      await supabase.from('planes').update(datos).eq('id', id);
+    }
+  }
+
+  Future<void> borrarPlan(String id) async {
+    await supabase.from('planes').delete().eq('id', id);
+  }
+
+  /// Copia al mes [destino] todo lo previsto en el mes anterior.
+  Future<int> copiarPlanDelMesAnterior(DateTime destino) async {
+    final anterior = DateTime(destino.year, destino.month - 1);
+    final filas = [
+      for (final p in planes.where((p) => p.esDelMes(anterior)))
+        {
+          'hogar_id': hogar!.id,
+          'usuario_id': miUsuarioId,
+          'mes': fechaIso(DateTime(destino.year, destino.month)),
+          'tipo': p.tipo.name,
+          'categoria': p.categoria,
+          'monto': p.monto,
+          'nota': p.nota,
+        },
+    ];
+    if (filas.isNotEmpty) await supabase.from('planes').insert(filas);
+    return filas.length;
+  }
+
+  Future<void> guardarDeuda({
+    String? id,
+    required String usuarioId,
+    required String nombre,
+    required TipoDeuda tipo,
+    required double? limite,
+    required double saldoInicial,
+    required int? diaPago,
+  }) async {
+    final datos = {
+      'usuario_id': usuarioId,
+      'nombre': nombre,
+      'tipo': tipo.name,
+      'limite': limite,
+      'saldo_inicial': saldoInicial,
+      'dia_pago': diaPago,
+    };
+    if (id == null) {
+      await supabase.from('deudas').insert({...datos, 'hogar_id': hogar!.id});
+    } else {
+      await supabase.from('deudas').update(datos).eq('id', id);
+    }
+  }
+
+  Future<void> borrarDeuda(String id) async {
+    await supabase.from('deudas').delete().eq('id', id);
+  }
+
+  /// Anota un pago o un cargo. Si [tambienComoGasto], el pago cuenta además
+  /// como gasto del mes en "Deudas / Préstamos".
+  Future<void> anotarOperacionDeuda({
+    required Deuda deuda,
+    required bool esPago,
+    required double monto,
+    required String nota,
+    required DateTime fecha,
+    bool tambienComoGasto = false,
+  }) async {
+    await supabase.from('operaciones_deuda').insert({
+      'hogar_id': hogar!.id,
+      'deuda_id': deuda.id,
+      'usuario_id': miUsuarioId,
+      'tipo': esPago ? 'pago' : 'cargo',
+      'monto': monto,
+      'nota': nota,
+      'fecha': fechaIso(fecha),
+    });
+    if (esPago && tambienComoGasto) {
+      await guardarMovimiento(
+        tipo: TipoMovimiento.gasto,
+        categoria: 'deudas',
+        monto: monto,
+        nota: nota.isEmpty ? 'Pago ${deuda.nombre}' : nota,
+        fecha: fecha,
+      );
+    }
+  }
+
+  Future<void> borrarOperacionDeuda(String id) async {
+    await supabase.from('operaciones_deuda').delete().eq('id', id);
   }
 
   @override

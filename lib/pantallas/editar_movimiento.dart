@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../datos.dart';
 import '../formato.dart';
 import '../modelo.dart';
+import '../widgets/selector_categoria.dart';
 import 'movimientos.dart';
 
 class PantallaEditarMovimiento extends StatefulWidget {
@@ -19,6 +20,7 @@ class _PantallaEditarMovimientoState extends State<PantallaEditarMovimiento> {
   late TipoMovimiento _tipo;
   late String _categoria;
   late DateTime _fecha;
+  String? _deudaId;
   final _monto = TextEditingController();
   final _nota = TextEditingController();
   bool _ocupado = false;
@@ -30,6 +32,7 @@ class _PantallaEditarMovimientoState extends State<PantallaEditarMovimiento> {
     _tipo = m?.tipo ?? TipoMovimiento.gasto;
     _categoria = m?.categoria ?? categoriasGasto.first.clave;
     _fecha = m?.fecha ?? DateTime.now();
+    _deudaId = m?.deudaId;
     if (m != null) {
       _monto.text = m.monto.abs().toStringAsFixed(2).replaceAll('.', ',').replaceAll(',00', '');
       _nota.text = m.nota;
@@ -37,6 +40,11 @@ class _PantallaEditarMovimientoState extends State<PantallaEditarMovimiento> {
       if (m.tipo == TipoMovimiento.ahorro) _categoria = m.monto < 0 ? 'retirar' : 'guardar';
     }
   }
+
+  List<Deuda> get _tarjetas => [
+    for (final d in widget.datos.deudas)
+      if (d.tipo == TipoDeuda.tarjeta || d.id == _deudaId) d,
+  ];
 
   void _cambiarTipo(TipoMovimiento tipo) {
     setState(() {
@@ -70,6 +78,7 @@ class _PantallaEditarMovimientoState extends State<PantallaEditarMovimiento> {
         monto: _tipo == TipoMovimiento.ahorro && _categoria == 'retirar' ? -monto : monto,
         nota: _nota.text.trim(),
         fecha: _fecha,
+        deudaId: _deudaId,
       );
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
@@ -133,49 +142,43 @@ class _PantallaEditarMovimientoState extends State<PantallaEditarMovimiento> {
           const SizedBox(height: 20),
           Text(_tipo == TipoMovimiento.ahorro ? '¿Guardar o sacar?' : 'Categoría', style: t.titleSmall),
           const SizedBox(height: 8),
-          GridView.count(
-            crossAxisCount: 4,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            mainAxisSpacing: 8,
-            crossAxisSpacing: 8,
-            childAspectRatio: 0.85,
-            children: [
-              for (final cat in categoriasDe(_tipo))
-                InkWell(
-                  borderRadius: BorderRadius.circular(12),
-                  onTap: () => setState(() => _categoria = cat.clave),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: _categoria == cat.clave ? cat.color : c.outlineVariant,
-                        width: _categoria == cat.clave ? 2.5 : 1,
-                      ),
-                      color: _categoria == cat.clave ? cat.color.withValues(alpha: 0.12) : null,
-                    ),
-                    padding: const EdgeInsets.all(4),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        CircleAvatar(
-                          radius: 18,
-                          backgroundColor: cat.color,
-                          foregroundColor: Colors.white,
-                          child: Icon(cat.icono, size: 20),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(cat.nombre,
-                            textAlign: TextAlign.center,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 11)),
-                      ],
-                    ),
-                  ),
-                ),
-            ],
+          SelectorCategoria(
+            categorias: categoriasDe(_tipo),
+            elegida: _categoria,
+            alElegir: (clave) => setState(() => _categoria = clave),
           ),
+          if (_tipo == TipoMovimiento.gasto && _tarjetas.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            Text('¿Cómo lo pagaste?', style: t.titleSmall),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                ChoiceChip(
+                  avatar: const Icon(Icons.payments, size: 18),
+                  label: const Text('Efectivo / débito'),
+                  selected: _deudaId == null,
+                  onSelected: (_) => setState(() => _deudaId = null),
+                ),
+                for (final d in _tarjetas)
+                  ChoiceChip(
+                    avatar: Icon(iconosTipoDeuda[d.tipo], size: 18),
+                    label: Text('${d.nombre} (${widget.datos.miembro(d.usuarioId).nombre})'),
+                    selected: _deudaId == d.id,
+                    onSelected: (_) => setState(() => _deudaId = d.id),
+                  ),
+              ],
+            ),
+            if (_deudaId != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                  'Se sumará a lo que se debe de esa tarjeta.',
+                  style: t.bodySmall?.copyWith(color: c.onSurfaceVariant),
+                ),
+              ),
+          ],
           const SizedBox(height: 20),
           ListTile(
             contentPadding: EdgeInsets.zero,

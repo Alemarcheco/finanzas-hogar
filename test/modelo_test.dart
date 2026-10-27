@@ -4,14 +4,14 @@ import 'package:finanzas_hogar/modelo.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Movimiento mov(String usuario, TipoMovimiento tipo, String categoria, double monto, DateTime fecha) => Movimiento(
-      id: '${fecha.toIso8601String()}-$monto',
-      usuarioId: usuario,
-      tipo: tipo,
-      categoria: categoria,
-      monto: monto,
-      nota: '',
-      fecha: fecha,
-    );
+  id: '${fecha.toIso8601String()}-$monto',
+  usuarioId: usuario,
+  tipo: tipo,
+  categoria: categoria,
+  monto: monto,
+  nota: '',
+  fecha: fecha,
+);
 
 void main() {
   test('resumen del mes por categoría y por persona', () {
@@ -46,6 +46,100 @@ void main() {
     expect(leerMonto('1,234.56'), 1234.56);
     expect(leerMonto(''), null);
     expect(leerMonto('abc'), null);
+  });
+
+  test('plan del mes: previsto frente a real', () {
+    final mes = DateTime(2026, 10);
+    final planes = [
+      Plan(id: '1', mes: mes, tipo: TipoMovimiento.gasto, categoria: 'renta', monto: 750, nota: ''),
+      Plan(id: '2', mes: mes, tipo: TipoMovimiento.gasto, categoria: 'comida', monto: 300, nota: ''),
+      Plan(id: '3', mes: mes, tipo: TipoMovimiento.gasto, categoria: 'comida', monto: 100, nota: 'Fiesta'),
+      Plan(id: '4', mes: mes, tipo: TipoMovimiento.ingreso, categoria: 'salario', monto: 2000, nota: ''),
+      Plan(id: '5', mes: mes, tipo: TipoMovimiento.ahorro, categoria: 'guardar', monto: 200, nota: ''),
+      Plan(id: '6', mes: DateTime(2026, 9), tipo: TipoMovimiento.gasto, categoria: 'renta', monto: 999, nota: ''),
+    ];
+    final movs = [
+      mov('a', TipoMovimiento.gasto, 'comida', 450, DateTime(2026, 10, 3)),
+      mov('a', TipoMovimiento.gasto, 'ocio', 30, DateTime(2026, 10, 4)),
+      mov('a', TipoMovimiento.ahorro, 'guardar', 250, DateTime(2026, 10, 5)),
+      mov('a', TipoMovimiento.ahorro, 'retirar', -50, DateTime(2026, 10, 6)),
+    ];
+    final r = ResumenPlan.calcular(planes, movs, mes);
+    expect(r.previsto(TipoMovimiento.gasto), 1150);
+    expect(r.real(TipoMovimiento.gasto), 480);
+    expect(r.librePrevisto, 650);
+    final comida = r.lineas[TipoMovimiento.gasto]!.firstWhere((l) => l.categoria == 'comida');
+    expect(comida.previsto, 400);
+    expect(comida.diferencia, 50);
+    final ocio = r.lineas[TipoMovimiento.gasto]!.firstWhere((l) => l.categoria == 'ocio');
+    expect(ocio.previsto, 0);
+    expect(r.real(TipoMovimiento.ahorro), 200);
+  });
+
+  test('saldo y próximo pago de una tarjeta', () {
+    const visa = Deuda(
+      id: 'v',
+      usuarioId: 'a',
+      nombre: 'Visa',
+      tipo: TipoDeuda.tarjeta,
+      limite: 1000,
+      saldoInicial: 300,
+      diaPago: 31,
+    );
+    final movs = [
+      Movimiento(
+        id: '1',
+        usuarioId: 'a',
+        tipo: TipoMovimiento.gasto,
+        categoria: 'comida',
+        monto: 80,
+        nota: '',
+        fecha: DateTime(2026, 10, 1),
+        deudaId: 'v',
+      ),
+      Movimiento(
+        id: '2',
+        usuarioId: 'a',
+        tipo: TipoMovimiento.gasto,
+        categoria: 'comida',
+        monto: 40,
+        nota: '',
+        fecha: DateTime(2026, 10, 1),
+      ),
+    ];
+    final ops = [
+      OperacionDeuda(
+        id: 'p',
+        deudaId: 'v',
+        usuarioId: 'a',
+        esPago: true,
+        monto: 100,
+        nota: '',
+        fecha: DateTime(2026, 10, 2),
+      ),
+      OperacionDeuda(
+        id: 'c',
+        deudaId: 'v',
+        usuarioId: 'a',
+        esPago: false,
+        monto: 5,
+        nota: '',
+        fecha: DateTime(2026, 10, 2),
+      ),
+      OperacionDeuda(
+        id: 'x',
+        deudaId: 'otra',
+        usuarioId: 'a',
+        esPago: true,
+        monto: 999,
+        nota: '',
+        fecha: DateTime(2026, 10, 2),
+      ),
+    ];
+    expect(visa.saldo(movs, ops), 285);
+    expect(visa.proximoPago(DateTime(2026, 2, 10)), DateTime(2026, 2, 28));
+    expect(visa.proximoPago(DateTime(2026, 10, 31)), DateTime(2026, 10, 31));
+    expect(visa.proximoPago(DateTime(2026, 11, 1)), DateTime(2026, 11, 30));
   });
 
   testWidgets('sin servidor configurado avisa en vez de fallar', (tester) async {

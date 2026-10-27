@@ -24,9 +24,9 @@ class FinanzasHogarApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     ThemeData tema(Brightness brillo) => ThemeData(
-          colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF00897B), brightness: brillo),
-          useMaterial3: true,
-        );
+      colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF00897B), brightness: brillo),
+      useMaterial3: true,
+    );
     return MaterialApp(
       title: 'Finanzas del Hogar',
       debugShowCheckedModeBanner: false,
@@ -97,12 +97,15 @@ class _ConHogarState extends State<_ConHogar> {
               body: Center(
                 child: Padding(
                   padding: const EdgeInsets.all(24),
-                  child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    Text(datos.error!, textAlign: TextAlign.center),
-                    const SizedBox(height: 16),
-                    FilledButton(onPressed: datos.cargar, child: const Text('Reintentar')),
-                    TextButton(onPressed: () => supabase.auth.signOut(), child: const Text('Cerrar sesión')),
-                  ]),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(datos.error!, textAlign: TextAlign.center),
+                      const SizedBox(height: 16),
+                      FilledButton(onPressed: datos.cargar, child: const Text('Reintentar')),
+                      TextButton(onPressed: () => supabase.auth.signOut(), child: const Text('Cerrar sesión')),
+                    ],
+                  ),
                 ),
               ),
             );

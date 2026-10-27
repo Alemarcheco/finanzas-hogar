@@ -41,34 +41,43 @@ class _PestanaMovimientosState extends State<PestanaMovimientos> {
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-          child: Row(children: [
-            _Filtro('Todos', _persona == null, () => setState(() => _persona = null)),
-            for (final m in datos.miembros)
-              _Filtro(m.usuarioId == miUsuarioId ? 'Yo' : m.nombre, _persona == m.usuarioId,
-                  () => setState(() => _persona = m.usuarioId), color: m.color),
-            const SizedBox(width: 8),
-            const SizedBox(height: 24, child: VerticalDivider()),
-            for (final t in TipoMovimiento.values)
-              _Filtro(_nombreTipo(t), _tipo == t, () => setState(() => _tipo = _tipo == t ? null : t)),
-          ]),
+          child: Row(
+            children: [
+              _Filtro('Todos', _persona == null, () => setState(() => _persona = null)),
+              for (final m in datos.miembros)
+                _Filtro(
+                  m.usuarioId == miUsuarioId ? 'Yo' : m.nombre,
+                  _persona == m.usuarioId,
+                  () => setState(() => _persona = m.usuarioId),
+                  color: m.color,
+                ),
+              const SizedBox(width: 8),
+              const SizedBox(height: 24, child: VerticalDivider()),
+              for (final t in TipoMovimiento.values)
+                _Filtro(_nombreTipo(t), _tipo == t, () => setState(() => _tipo = _tipo == t ? null : t)),
+            ],
+          ),
         ),
         Expanded(
           child: lista.isEmpty
               ? Center(
-                  child: Text('No hay movimientos', style: TextStyle(color: Theme.of(context).colorScheme.outline)))
+                  child: Text('No hay movimientos', style: TextStyle(color: Theme.of(context).colorScheme.outline)),
+                )
               : ListView(
                   padding: const EdgeInsets.only(bottom: 96),
                   children: [
                     for (final dia in grupos.keys) ...[
                       Padding(
                         padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-                        child: Row(children: [
-                          Expanded(child: Text(fechaDia(dia), style: Theme.of(context).textTheme.labelLarge)),
-                          Text(
-                            dinero(_netoDelDia(grupos[dia]!), moneda),
-                            style: Theme.of(context).textTheme.labelMedium,
-                          ),
-                        ]),
+                        child: Row(
+                          children: [
+                            Expanded(child: Text(fechaDia(dia), style: Theme.of(context).textTheme.labelLarge)),
+                            Text(
+                              dinero(_netoDelDia(grupos[dia]!), moneda),
+                              style: Theme.of(context).textTheme.labelMedium,
+                            ),
+                          ],
+                        ),
                       ),
                       for (final m in grupos[dia]!) _FilaMovimiento(m: m, datos: datos),
                     ],
@@ -80,19 +89,19 @@ class _PestanaMovimientosState extends State<PestanaMovimientos> {
   }
 
   double _netoDelDia(List<Movimiento> lista) => lista.fold(0, (s, m) {
-        return switch (m.tipo) {
-          TipoMovimiento.ingreso => s + m.monto,
-          TipoMovimiento.gasto => s - m.monto,
-          TipoMovimiento.ahorro => s - m.monto,
-        };
-      });
+    return switch (m.tipo) {
+      TipoMovimiento.ingreso => s + m.monto,
+      TipoMovimiento.gasto => s - m.monto,
+      TipoMovimiento.ahorro => s - m.monto,
+    };
+  });
 }
 
 String _nombreTipo(TipoMovimiento t) => switch (t) {
-      TipoMovimiento.gasto => 'Gastos',
-      TipoMovimiento.ingreso => 'Ingresos',
-      TipoMovimiento.ahorro => 'Ahorro',
-    };
+  TipoMovimiento.gasto => 'Gastos',
+  TipoMovimiento.ingreso => 'Ingresos',
+  TipoMovimiento.ahorro => 'Ahorro',
+};
 
 class _Filtro extends StatelessWidget {
   final String texto;
@@ -138,21 +147,34 @@ class _FilaMovimiento extends StatelessWidget {
     final fila = ListTile(
       leading: CircleAvatar(backgroundColor: cat.color, foregroundColor: Colors.white, child: Icon(cat.icono)),
       title: Text(m.nota.isEmpty ? cat.nombre : m.nota, maxLines: 1, overflow: TextOverflow.ellipsis),
-      subtitle: Row(children: [
-        if (m.nota.isNotEmpty) Flexible(child: Text('${cat.nombre} · ', overflow: TextOverflow.ellipsis)),
-        CircleAvatar(radius: 5, backgroundColor: persona.color),
-        const SizedBox(width: 4),
-        Flexible(child: Text(esMio ? 'Yo' : persona.nombre, overflow: TextOverflow.ellipsis)),
-      ]),
-      trailing: Text('$signo${dinero(m.monto.abs(), moneda)}',
-          style: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 15)),
+      subtitle: Row(
+        children: [
+          if (m.nota.isNotEmpty) Flexible(child: Text('${cat.nombre} · ', overflow: TextOverflow.ellipsis)),
+          CircleAvatar(radius: 5, backgroundColor: persona.color),
+          const SizedBox(width: 4),
+          Flexible(child: Text(esMio ? 'Yo' : persona.nombre, overflow: TextOverflow.ellipsis)),
+          if (datos.deuda(m.deudaId) case final tarjeta?) ...[
+            const SizedBox(width: 6),
+            const Icon(Icons.credit_card, size: 14),
+            const SizedBox(width: 2),
+            Flexible(child: Text(tarjeta.nombre, overflow: TextOverflow.ellipsis)),
+          ],
+        ],
+      ),
+      trailing: Text(
+        '$signo${dinero(m.monto.abs(), moneda)}',
+        style: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 15),
+      ),
       onTap: esMio
-          ? () => Navigator.of(context).push(MaterialPageRoute(
+          ? () => Navigator.of(context).push(
+              MaterialPageRoute(
                 builder: (_) => PantallaEditarMovimiento(datos: datos, movimiento: m),
                 fullscreenDialog: true,
-              ))
-          : () => ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Solo ${persona.nombre} puede cambiar este movimiento.'))),
+              ),
+            )
+          : () =>
+                ScaffoldMessenger.of(context)
+                    .showSnackBar(SnackBar(content: Text('Solo ${persona.nombre} puede cambiar este movimiento.'))),
     );
 
     if (!esMio) return fila;

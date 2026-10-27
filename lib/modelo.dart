@@ -46,10 +46,10 @@ const categoriasAhorro = <Categoria>[
 ];
 
 List<Categoria> categoriasDe(TipoMovimiento tipo) => switch (tipo) {
-      TipoMovimiento.gasto => categoriasGasto,
-      TipoMovimiento.ingreso => categoriasIngreso,
-      TipoMovimiento.ahorro => categoriasAhorro,
-    };
+  TipoMovimiento.gasto => categoriasGasto,
+  TipoMovimiento.ingreso => categoriasIngreso,
+  TipoMovimiento.ahorro => categoriasAhorro,
+};
 
 Categoria categoriaPorClave(String clave) {
   for (final c in [...categoriasGasto, ...categoriasIngreso, ...categoriasAhorro]) {
@@ -67,11 +67,11 @@ class Hogar {
   const Hogar({required this.id, required this.nombre, required this.codigo, required this.moneda});
 
   factory Hogar.desdeMapa(Map<String, dynamic> m) => Hogar(
-        id: m['id'] as String,
-        nombre: m['nombre'] as String,
-        codigo: m['codigo'] as String,
-        moneda: m['moneda'] as String,
-      );
+    id: m['id'] as String,
+    nombre: m['nombre'] as String,
+    codigo: m['codigo'] as String,
+    moneda: m['moneda'] as String,
+  );
 }
 
 const coloresPersona = <Color>[
@@ -102,6 +102,9 @@ class Movimiento {
   final String nota;
   final DateTime fecha;
 
+  /// Tarjeta o deuda con la que se pagó este gasto (si se pagó a crédito).
+  final String? deudaId;
+
   const Movimiento({
     required this.id,
     required this.usuarioId,
@@ -110,17 +113,19 @@ class Movimiento {
     required this.monto,
     required this.nota,
     required this.fecha,
+    this.deudaId,
   });
 
   factory Movimiento.desdeMapa(Map<String, dynamic> m) => Movimiento(
-        id: m['id'] as String,
-        usuarioId: m['usuario_id'] as String,
-        tipo: tipoDesdeTexto(m['tipo'] as String),
-        categoria: m['categoria'] as String,
-        monto: (m['monto'] as num).toDouble(),
-        nota: (m['nota'] as String?) ?? '',
-        fecha: DateTime.parse(m['fecha'] as String),
-      );
+    id: m['id'] as String,
+    usuarioId: m['usuario_id'] as String,
+    tipo: tipoDesdeTexto(m['tipo'] as String),
+    categoria: m['categoria'] as String,
+    monto: (m['monto'] as num).toDouble(),
+    nota: (m['nota'] as String?) ?? '',
+    fecha: DateTime.parse(m['fecha'] as String),
+    deudaId: m['deuda_id'] as String?,
+  );
 
   bool esDelMes(DateTime mes) => fecha.year == mes.year && fecha.month == mes.month;
 }
@@ -188,4 +193,192 @@ class Resumen {
       porPersona: porPersona,
     );
   }
+}
+
+/// Algo previsto para un mes: un ingreso, un gasto o un ahorro.
+class Plan {
+  final String id;
+  final DateTime mes;
+  final TipoMovimiento tipo;
+  final String categoria;
+  final double monto;
+  final String nota;
+
+  const Plan({
+    required this.id,
+    required this.mes,
+    required this.tipo,
+    required this.categoria,
+    required this.monto,
+    required this.nota,
+  });
+
+  factory Plan.desdeMapa(Map<String, dynamic> m) {
+    final fecha = DateTime.parse(m['mes'] as String);
+    return Plan(
+      id: m['id'] as String,
+      mes: DateTime(fecha.year, fecha.month),
+      tipo: tipoDesdeTexto(m['tipo'] as String),
+      categoria: m['categoria'] as String,
+      monto: (m['monto'] as num).toDouble(),
+      nota: (m['nota'] as String?) ?? '',
+    );
+  }
+
+  bool esDelMes(DateTime m) => mes.year == m.year && mes.month == m.month;
+}
+
+/// Previsto frente a real de una categoría.
+class LineaPlan {
+  final TipoMovimiento tipo;
+  final String categoria;
+  final List<Plan> partidas;
+  double previsto = 0;
+  double real = 0;
+
+  LineaPlan(this.tipo, this.categoria) : partidas = [];
+
+  double get diferencia => real - previsto;
+  double get avance => previsto > 0 ? real / previsto : (real > 0 ? 1 : 0);
+}
+
+class ResumenPlan {
+  final Map<TipoMovimiento, List<LineaPlan>> lineas;
+
+  const ResumenPlan(this.lineas);
+
+  double previsto(TipoMovimiento t) => lineas[t]!.fold(0, (s, l) => s + l.previsto);
+  double real(TipoMovimiento t) => lineas[t]!.fold(0, (s, l) => s + l.real);
+
+  double get librePrevisto =>
+      previsto(TipoMovimiento.ingreso) - previsto(TipoMovimiento.gasto) - previsto(TipoMovimiento.ahorro);
+
+  bool get vacio => lineas.values.every((l) => l.every((x) => x.partidas.isEmpty));
+
+  /// Junta lo previsto y lo anotado del mes por tipo y categoría.
+  /// Las categorías con gasto real pero sin plan también aparecen (previsto 0).
+  factory ResumenPlan.calcular(Iterable<Plan> planes, Iterable<Movimiento> movimientos, DateTime mes) {
+    final porClave = <String, LineaPlan>{};
+    LineaPlan linea(TipoMovimiento t, String c) => porClave.putIfAbsent('${t.name}/$c', () => LineaPlan(t, c));
+    for (final p in planes.where((p) => p.esDelMes(mes))) {
+      linea(p.tipo, p.categoria)
+        ..previsto += p.monto
+        ..partidas.add(p);
+    }
+    for (final m in movimientos.where((m) => m.esDelMes(mes))) {
+      // En el ahorro solo cuenta lo guardado contra lo previsto.
+      final categoria = m.tipo == TipoMovimiento.ahorro ? 'guardar' : m.categoria;
+      linea(m.tipo, categoria).real += m.monto;
+    }
+    final lineas = {for (final t in TipoMovimiento.values) t: <LineaPlan>[]};
+    for (final l in porClave.values) {
+      lineas[l.tipo]!.add(l);
+    }
+    for (final lista in lineas.values) {
+      lista.sort((a, b) {
+        final porPrevisto = b.previsto.compareTo(a.previsto);
+        return porPrevisto != 0 ? porPrevisto : b.real.compareTo(a.real);
+      });
+    }
+    return ResumenPlan(lineas);
+  }
+}
+
+enum TipoDeuda { tarjeta, prestamo, otra }
+
+const nombresTipoDeuda = {
+  TipoDeuda.tarjeta: 'Tarjeta de crédito',
+  TipoDeuda.prestamo: 'Préstamo',
+  TipoDeuda.otra: 'Otra deuda',
+};
+
+const iconosTipoDeuda = {
+  TipoDeuda.tarjeta: Icons.credit_card,
+  TipoDeuda.prestamo: Icons.account_balance,
+  TipoDeuda.otra: Icons.handshake,
+};
+
+class Deuda {
+  final String id;
+  final String usuarioId;
+  final String nombre;
+  final TipoDeuda tipo;
+  final double? limite;
+  final double saldoInicial;
+  final int? diaPago;
+
+  const Deuda({
+    required this.id,
+    required this.usuarioId,
+    required this.nombre,
+    required this.tipo,
+    required this.limite,
+    required this.saldoInicial,
+    required this.diaPago,
+  });
+
+  factory Deuda.desdeMapa(Map<String, dynamic> m) => Deuda(
+    id: m['id'] as String,
+    usuarioId: m['usuario_id'] as String,
+    nombre: m['nombre'] as String,
+    tipo: TipoDeuda.values.firstWhere((t) => t.name == m['tipo'], orElse: () => TipoDeuda.otra),
+    limite: (m['limite'] as num?)?.toDouble(),
+    saldoInicial: (m['saldo_inicial'] as num).toDouble(),
+    diaPago: m['dia_pago'] as int?,
+  );
+
+  /// Lo que se debe hoy: saldo inicial + compras con la tarjeta + cargos − pagos.
+  double saldo(Iterable<Movimiento> movimientos, Iterable<OperacionDeuda> operaciones) {
+    var total = saldoInicial;
+    for (final m in movimientos) {
+      if (m.deudaId == id && m.tipo == TipoMovimiento.gasto) total += m.monto;
+    }
+    for (final o in operaciones) {
+      if (o.deudaId != id) continue;
+      total += o.esPago ? -o.monto : o.monto;
+    }
+    return total;
+  }
+
+  /// Próxima fecha de pago a partir de [hoy].
+  DateTime? proximoPago(DateTime hoy) {
+    if (diaPago == null) return null;
+    DateTime enMes(int anio, int mes) {
+      final ultimo = DateTime(anio, mes + 1, 0).day;
+      return DateTime(anio, mes, diaPago! > ultimo ? ultimo : diaPago!);
+    }
+
+    final este = enMes(hoy.year, hoy.month);
+    return este.isBefore(DateTime(hoy.year, hoy.month, hoy.day)) ? enMes(hoy.year, hoy.month + 1) : este;
+  }
+}
+
+class OperacionDeuda {
+  final String id;
+  final String deudaId;
+  final String usuarioId;
+  final bool esPago;
+  final double monto;
+  final String nota;
+  final DateTime fecha;
+
+  const OperacionDeuda({
+    required this.id,
+    required this.deudaId,
+    required this.usuarioId,
+    required this.esPago,
+    required this.monto,
+    required this.nota,
+    required this.fecha,
+  });
+
+  factory OperacionDeuda.desdeMapa(Map<String, dynamic> m) => OperacionDeuda(
+    id: m['id'] as String,
+    deudaId: m['deuda_id'] as String,
+    usuarioId: m['usuario_id'] as String,
+    esPago: m['tipo'] == 'pago',
+    monto: (m['monto'] as num).toDouble(),
+    nota: (m['nota'] as String?) ?? '',
+    fecha: DateTime.parse(m['fecha'] as String),
+  );
 }

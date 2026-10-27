@@ -12,8 +12,9 @@ const azulAhorro = Color(0xFF00838F);
 class PestanaResumen extends StatelessWidget {
   final DatosHogar datos;
   final DateTime mes;
+  final ValueChanged<int> irA;
 
-  const PestanaResumen({super.key, required this.datos, required this.mes});
+  const PestanaResumen({super.key, required this.datos, required this.mes, required this.irA});
 
   @override
   Widget build(BuildContext context) {
@@ -29,6 +30,8 @@ class PestanaResumen extends StatelessWidget {
         _TarjetaBalance(r: r, anterior: anterior, moneda: moneda),
         const SizedBox(height: 12),
         _TarjetaAhorro(r: r, moneda: moneda),
+        const SizedBox(height: 12),
+        _TarjetaPlanYDeudas(datos: datos, mes: mes, irA: irA),
         const SizedBox(height: 12),
         if (!hayDatos)
           const _Vacio()
@@ -132,14 +135,18 @@ class _Cifra extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(children: [
-            Icon(icono, size: 14, color: color),
-            const SizedBox(width: 4),
-            Text(titulo, style: TextStyle(fontSize: 12, color: c.onPrimaryContainer)),
-          ]),
+          Row(
+            children: [
+              Icon(icono, size: 14, color: color),
+              const SizedBox(width: 4),
+              Text(titulo, style: TextStyle(fontSize: 12, color: c.onPrimaryContainer)),
+            ],
+          ),
           FittedBox(
-            child: Text(dinero(valor, moneda),
-                style: TextStyle(fontWeight: FontWeight.w600, color: c.onPrimaryContainer)),
+            child: Text(
+              dinero(valor, moneda),
+              style: TextStyle(fontWeight: FontWeight.w600, color: c.onPrimaryContainer),
+            ),
           ),
         ],
       ),
@@ -195,15 +202,21 @@ class _TarjetaCategorias extends StatelessWidget {
             Center(
               child: GraficoDona(
                 porciones: [for (final e in entradas) PorcionDona(e.value, categoriaPorClave(e.key).color)],
-                centro: Column(mainAxisSize: MainAxisSize.min, children: [
-                  Text('Gastos', style: t.bodySmall),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 36),
-                    child: FittedBox(
-                      child: Text(dinero(r.gastos, moneda), style: t.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+                centro: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('Gastos', style: t.bodySmall),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 36),
+                      child: FittedBox(
+                        child: Text(
+                          dinero(r.gastos, moneda),
+                          style: t.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                      ),
                     ),
-                  ),
-                ]),
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: 16),
@@ -223,29 +236,36 @@ class _TarjetaCategorias extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(children: [
-                            Expanded(child: Text(categoriaPorClave(e.key).nombre)),
-                            Text(dinero(e.value, moneda), style: const TextStyle(fontWeight: FontWeight.w600)),
-                          ]),
+                          Row(
+                            children: [
+                              Expanded(child: Text(categoriaPorClave(e.key).nombre)),
+                              Text(dinero(e.value, moneda), style: const TextStyle(fontWeight: FontWeight.w600)),
+                            ],
+                          ),
                           const SizedBox(height: 4),
-                          Row(children: [
-                            Expanded(
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(4),
-                                child: LinearProgressIndicator(
-                                  value: e.value / r.gastos,
-                                  minHeight: 6,
-                                  color: categoriaPorClave(e.key).color,
-                                  backgroundColor: c.surfaceContainerHighest,
+                          Row(
+                            children: [
+                              Expanded(
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(4),
+                                  child: LinearProgressIndicator(
+                                    value: e.value / r.gastos,
+                                    minHeight: 6,
+                                    color: categoriaPorClave(e.key).color,
+                                    backgroundColor: c.surfaceContainerHighest,
+                                  ),
                                 ),
                               ),
-                            ),
-                            SizedBox(
-                              width: 44,
-                              child: Text('${(e.value / r.gastos * 100).toStringAsFixed(0)}%',
-                                  textAlign: TextAlign.right, style: t.bodySmall),
-                            ),
-                          ]),
+                              SizedBox(
+                                width: 44,
+                                child: Text(
+                                  '${(e.value / r.gastos * 100).toStringAsFixed(0)}%',
+                                  textAlign: TextAlign.right,
+                                  style: t.bodySmall,
+                                ),
+                              ),
+                            ],
+                          ),
                         ],
                       ),
                     ),
@@ -285,51 +305,68 @@ class _TarjetaPersonas extends StatelessWidget {
             Text('¿Quién gastó qué?', style: t.titleMedium),
             const SizedBox(height: 12),
             for (final id in ids) ...[
-              Builder(builder: (context) {
-                final m = datos.miembro(id);
-                final p = r.porPersona[id] ?? ResumenPersona();
-                final parte = r.gastos > 0 ? p.gastos / r.gastos : 0.0;
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(children: [
-                        CircleAvatar(
-                          radius: 14,
-                          backgroundColor: m.color,
-                          foregroundColor: Colors.white,
-                          child: Text(m.nombre.isEmpty ? '?' : m.nombre[0].toUpperCase(),
-                              style: const TextStyle(fontSize: 13)),
+              Builder(
+                builder: (context) {
+                  final m = datos.miembro(id);
+                  final p = r.porPersona[id] ?? ResumenPersona();
+                  final parte = r.gastos > 0 ? p.gastos / r.gastos : 0.0;
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 14,
+                              backgroundColor: m.color,
+                              foregroundColor: Colors.white,
+                              child: Text(
+                                m.nombre.isEmpty ? '?' : m.nombre[0].toUpperCase(),
+                                style: const TextStyle(fontSize: 13),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                id == miUsuarioId ? '${m.nombre} (tú)' : m.nombre,
+                                style: const TextStyle(fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                            Text('${(parte * 100).toStringAsFixed(0)}% del gasto', style: t.bodySmall),
+                          ],
                         ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(id == miUsuarioId ? '${m.nombre} (tú)' : m.nombre,
-                              style: const TextStyle(fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 6),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: LinearProgressIndicator(
+                            value: parte,
+                            minHeight: 8,
+                            color: m.color,
+                            backgroundColor: c.surfaceContainerHighest,
+                          ),
                         ),
-                        Text('${(parte * 100).toStringAsFixed(0)}% del gasto', style: t.bodySmall),
-                      ]),
-                      const SizedBox(height: 6),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
-                        child: LinearProgressIndicator(
-                          value: parte,
-                          minHeight: 8,
-                          color: m.color,
-                          backgroundColor: c.surfaceContainerHighest,
+                        const SizedBox(height: 6),
+                        Wrap(
+                          spacing: 16,
+                          children: [
+                            Text('Gastó ${dinero(p.gastos, moneda)}', style: t.bodySmall?.copyWith(color: rojoGasto)),
+                            Text(
+                              'Ingresó ${dinero(p.ingresos, moneda)}',
+                              style: t.bodySmall?.copyWith(color: verdeIngreso),
+                            ),
+                            if (p.ahorro != 0)
+                              Text(
+                                'Ahorró ${dinero(p.ahorro, moneda)}',
+                                style: t.bodySmall?.copyWith(color: azulAhorro),
+                              ),
+                          ],
                         ),
-                      ),
-                      const SizedBox(height: 6),
-                      Wrap(spacing: 16, children: [
-                        Text('Gastó ${dinero(p.gastos, moneda)}', style: t.bodySmall?.copyWith(color: rojoGasto)),
-                        Text('Ingresó ${dinero(p.ingresos, moneda)}', style: t.bodySmall?.copyWith(color: verdeIngreso)),
-                        if (p.ahorro != 0)
-                          Text('Ahorró ${dinero(p.ahorro, moneda)}', style: t.bodySmall?.copyWith(color: azulAhorro)),
-                      ]),
-                    ],
-                  ),
-                );
-              }),
+                      ],
+                    ),
+                  );
+                },
+              ),
             ],
           ],
         ),
@@ -346,12 +383,74 @@ class _Vacio extends StatelessWidget {
     final c = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 40),
-      child: Column(children: [
-        Icon(Icons.receipt_long, size: 64, color: c.outline),
-        const SizedBox(height: 12),
-        Text('Aún no hay nada anotado este mes.\nPulsa "Anotar" para añadir un gasto o un ingreso.',
-            textAlign: TextAlign.center, style: TextStyle(color: c.onSurfaceVariant)),
-      ]),
+      child: Column(
+        children: [
+          Icon(Icons.receipt_long, size: 64, color: c.outline),
+          const SizedBox(height: 12),
+          Text(
+            'Aún no hay nada anotado este mes.\nPulsa "Anotar" para añadir un gasto o un ingreso.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: c.onSurfaceVariant),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Avance del plan del mes y total de deudas, con acceso a sus pestañas.
+class _TarjetaPlanYDeudas extends StatelessWidget {
+  final DatosHogar datos;
+  final DateTime mes;
+  final ValueChanged<int> irA;
+
+  const _TarjetaPlanYDeudas({required this.datos, required this.mes, required this.irA});
+
+  @override
+  Widget build(BuildContext context) {
+    final moneda = datos.hogar!.moneda;
+    final c = Theme.of(context).colorScheme;
+    final plan = ResumenPlan.calcular(datos.planes, datos.movimientos, mes);
+    final previsto = plan.previsto(TipoMovimiento.gasto);
+    final real = plan.real(TipoMovimiento.gasto);
+    final deuda = datos.deudas.fold<double>(0, (s, d) => s + datos.saldoDeuda(d));
+    return Card(
+      child: Column(
+        children: [
+          ListTile(
+            leading: const Icon(Icons.event_note),
+            title: const Text('Plan del mes'),
+            subtitle: previsto > 0
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Gastado ${dinero(real, moneda)} de ${dinero(previsto, moneda)} previstos'),
+                      const SizedBox(height: 4),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: LinearProgressIndicator(
+                          value: (real / previsto).clamp(0, 1).toDouble(),
+                          minHeight: 6,
+                          color: real > previsto ? rojoGasto : c.primary,
+                          backgroundColor: c.surfaceContainerHighest,
+                        ),
+                      ),
+                    ],
+                  )
+                : const Text('Aún no hay gastos previstos'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => irA(2),
+          ),
+          const Divider(height: 1),
+          ListTile(
+            leading: const Icon(Icons.credit_card),
+            title: const Text('Tarjetas y deudas'),
+            subtitle: Text(datos.deudas.isEmpty ? 'Sin deudas anotadas' : 'Se debe ${dinero(deuda, moneda)} en total'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => irA(3),
+          ),
+        ],
+      ),
     );
   }
 }

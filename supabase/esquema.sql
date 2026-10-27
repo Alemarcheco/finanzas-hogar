@@ -39,6 +39,53 @@ create table if not exists public.movimientos (
 );
 create index if not exists movimientos_hogar_fecha_idx on public.movimientos(hogar_id, fecha);
 
+-- Planificación: lo previsto para cada mes ------------------------------
+create table if not exists public.planes (
+  id uuid primary key default gen_random_uuid(),
+  hogar_id uuid not null references public.hogares(id) on delete cascade,
+  usuario_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  mes date not null,
+  tipo text not null check (tipo in ('ingreso', 'gasto', 'ahorro')),
+  categoria text not null,
+  monto numeric(14, 2) not null,
+  nota text not null default '',
+  creado_en timestamptz not null default now()
+);
+create index if not exists planes_hogar_mes_idx on public.planes(hogar_id, mes);
+
+-- Tarjetas de crédito, préstamos y otras deudas -------------------------
+create table if not exists public.deudas (
+  id uuid primary key default gen_random_uuid(),
+  hogar_id uuid not null references public.hogares(id) on delete cascade,
+  -- Persona responsable de la deuda
+  usuario_id uuid not null references auth.users(id) on delete cascade,
+  nombre text not null,
+  tipo text not null default 'tarjeta' check (tipo in ('tarjeta', 'prestamo', 'otra')),
+  limite numeric(14, 2),
+  saldo_inicial numeric(14, 2) not null default 0,
+  dia_pago int check (dia_pago between 1 and 31),
+  creado_en timestamptz not null default now()
+);
+create index if not exists deudas_hogar_idx on public.deudas(hogar_id);
+
+-- Pagos a la deuda y cargos que no se anotaron como gasto ------------------
+create table if not exists public.operaciones_deuda (
+  id uuid primary key default gen_random_uuid(),
+  hogar_id uuid not null references public.hogares(id) on delete cascade,
+  deuda_id uuid not null references public.deudas(id) on delete cascade,
+  usuario_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  tipo text not null check (tipo in ('cargo', 'pago')),
+  monto numeric(14, 2) not null,
+  nota text not null default '',
+  fecha date not null default current_date,
+  creado_en timestamptz not null default now()
+);
+create index if not exists operaciones_deuda_hogar_idx on public.operaciones_deuda(hogar_id);
+
+-- Un gasto pagado con tarjeta suma a la deuda de esa tarjeta
+alter table public.movimientos
+  add column if not exists deuda_id uuid references public.deudas(id) on delete set null;
+
 -- Hogar del usuario que hace la consulta ---------------------------
 create or replace function public.mi_hogar()
 returns uuid
@@ -71,14 +118,45 @@ create policy "ver movimientos del hogar" on public.movimientos
   for select using (hogar_id = public.mi_hogar());
 drop policy if exists "anotar mis movimientos" on public.movimientos;
 create policy "anotar mis movimientos" on public.movimientos
-  for insert with check (hogar_id = public.mi_hogar() and usuario_id = auth.uid());
+  for insert with check (
+    hogar_id = public.mi_hogar() and usuario_id = auth.uid()
+    and (deuda_id is null or exists (select 1 from public.deudas d where d.id = deuda_id and d.hogar_id = public.mi_hogar()))
+  );
 drop policy if exists "editar mis movimientos" on public.movimientos;
 create policy "editar mis movimientos" on public.movimientos
   for update using (usuario_id = auth.uid())
-  with check (hogar_id = public.mi_hogar() and usuario_id = auth.uid());
+  with check (
+    hogar_id = public.mi_hogar() and usuario_id = auth.uid()
+    and (deuda_id is null or exists (select 1 from public.deudas d where d.id = deuda_id and d.hogar_id = public.mi_hogar()))
+  );
 drop policy if exists "borrar mis movimientos" on public.movimientos;
 create policy "borrar mis movimientos" on public.movimientos
   for delete using (usuario_id = auth.uid());
+
+alter table public.planes enable row level security;
+alter table public.deudas enable row level security;
+alter table public.operaciones_deuda enable row level security;
+
+-- El plan y las deudas los pueden ver y cambiar todos los del hogar
+drop policy if exists "plan del hogar" on public.planes;
+create policy "plan del hogar" on public.planes
+  for all using (hogar_id = public.mi_hogar()) with check (hogar_id = public.mi_hogar());
+
+drop policy if exists "deudas del hogar" on public.deudas;
+create policy "deudas del hogar" on public.deudas
+  for all using (hogar_id = public.mi_hogar())
+  with check (
+    hogar_id = public.mi_hogar()
+    and exists (select 1 from public.miembros where usuario_id = deudas.usuario_id and hogar_id = public.mi_hogar())
+  );
+
+drop policy if exists "operaciones de deudas del hogar" on public.operaciones_deuda;
+create policy "operaciones de deudas del hogar" on public.operaciones_deuda
+  for all using (hogar_id = public.mi_hogar())
+  with check (
+    hogar_id = public.mi_hogar()
+    and exists (select 1 from public.deudas d where d.id = deuda_id and d.hogar_id = public.mi_hogar())
+  );
 
 -- Crear un hogar nuevo ---------------------------------------------
 create or replace function public.crear_hogar(p_nombre text, p_moneda text, p_mi_nombre text)
@@ -152,6 +230,18 @@ begin
   end;
   begin
     alter publication supabase_realtime add table public.miembros;
+  exception when duplicate_object then null;
+  end;
+  begin
+    alter publication supabase_realtime add table public.planes;
+  exception when duplicate_object then null;
+  end;
+  begin
+    alter publication supabase_realtime add table public.deudas;
+  exception when duplicate_object then null;
+  end;
+  begin
+    alter publication supabase_realtime add table public.operaciones_deuda;
   exception when duplicate_object then null;
   end;
 end $$;

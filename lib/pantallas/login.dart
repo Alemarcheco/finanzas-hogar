@@ -58,11 +58,17 @@ class _PantallaLoginState extends State<PantallaLogin> {
                 children: [
                   Icon(Icons.account_balance_wallet, size: 72, color: colores.primary),
                   const SizedBox(height: 12),
-                  Text('Finanzas del Hogar',
-                      textAlign: TextAlign.center, style: Theme.of(context).textTheme.headlineMedium),
+                  Text(
+                    'Finanzas del Hogar',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.headlineMedium,
+                  ),
                   const SizedBox(height: 4),
-                  Text('Las cuentas de casa, entre todos',
-                      textAlign: TextAlign.center, style: TextStyle(color: colores.onSurfaceVariant)),
+                  Text(
+                    'Las cuentas de casa, entre todos',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: colores.onSurfaceVariant),
+                  ),
                   const SizedBox(height: 32),
                   SegmentedButton<bool>(
                     segments: const [

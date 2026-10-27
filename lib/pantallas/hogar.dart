@@ -47,30 +47,35 @@ class PestanaHogar extends StatelessWidget {
           color: c.secondaryContainer,
           child: Padding(
             padding: const EdgeInsets.all(20),
-            child: Column(children: [
-              Text('Código para unirse al hogar', style: t.titleSmall?.copyWith(color: c.onSecondaryContainer)),
-              const SizedBox(height: 8),
-              SelectableText(
-                hogar.codigo,
-                style: t.displaySmall?.copyWith(
-                    letterSpacing: 6, fontWeight: FontWeight.bold, color: c.onSecondaryContainer),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Tu pareja instala la app, crea su cuenta, elige "Unirme" y escribe este código.',
-                textAlign: TextAlign.center,
-                style: t.bodySmall?.copyWith(color: c.onSecondaryContainer),
-              ),
-              const SizedBox(height: 8),
-              TextButton.icon(
-                icon: const Icon(Icons.copy),
-                label: const Text('Copiar código'),
-                onPressed: () {
-                  Clipboard.setData(ClipboardData(text: hogar.codigo));
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Código copiado')));
-                },
-              ),
-            ]),
+            child: Column(
+              children: [
+                Text('Código para unirse al hogar', style: t.titleSmall?.copyWith(color: c.onSecondaryContainer)),
+                const SizedBox(height: 8),
+                SelectableText(
+                  hogar.codigo,
+                  style: t.displaySmall?.copyWith(
+                    letterSpacing: 6,
+                    fontWeight: FontWeight.bold,
+                    color: c.onSecondaryContainer,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Tu pareja instala la app, crea su cuenta, elige "Unirme" y escribe este código.',
+                  textAlign: TextAlign.center,
+                  style: t.bodySmall?.copyWith(color: c.onSecondaryContainer),
+                ),
+                const SizedBox(height: 8),
+                TextButton.icon(
+                  icon: const Icon(Icons.copy),
+                  label: const Text('Copiar código'),
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: hogar.codigo));
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Código copiado')));
+                  },
+                ),
+              ],
+            ),
           ),
         ),
         const SizedBox(height: 16),
@@ -146,8 +151,9 @@ class PestanaHogar extends StatelessWidget {
               builder: (context) => AlertDialog(
                 title: const Text('¿Salir del hogar?'),
                 content: const Text(
-                    'Dejarás de ver las cuentas de este hogar. Lo que anotaste se queda para los demás. '
-                    'Podrás volver a entrar con el código.'),
+                  'Dejarás de ver las cuentas de este hogar. Lo que anotaste se queda para los demás. '
+                  'Podrás volver a entrar con el código.',
+                ),
                 actions: [
                   TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
                   FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Salir')),
