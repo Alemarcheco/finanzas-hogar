@@ -54,15 +54,7 @@ class DatosHogar extends ChangeNotifier {
     error = null;
     notifyListeners();
     try {
-      final fila = await supabase.from('miembros').select('hogar_id').eq('usuario_id', miUsuarioId).maybeSingle();
-      if (fila == null) {
-        hogar = null;
-        await _cancelar();
-      } else {
-        final datos = await supabase.from('hogares').select().eq('id', fila['hogar_id'] as String).single();
-        hogar = Hogar.desdeMapa(datos);
-        _escuchar(hogar!.id);
-      }
+      await _cargarDelServidor();
     } catch (e) {
       error = mensajeDeError(e);
     }
@@ -70,9 +62,76 @@ class DatosHogar extends ChangeNotifier {
     notifyListeners();
   }
 
-  void _escuchar(String hogarId) {
-    _cancelar();
-    void escuchar(String tabla, String clave, String orden, void Function(List<Map<String, dynamic>>) alRecibir) {
+  /// Vuelve a pedir todo al servidor y reabre la conexión en vivo.
+  /// Se usa al deslizar hacia abajo y al volver a la app desde segundo plano,
+  /// porque el sistema puede cortar la conexión en vivo mientras la app no se ve.
+  Future<void> refrescar() async {
+    try {
+      await _cargarDelServidor();
+      error = null;
+    } catch (e) {
+      error = mensajeDeError(e);
+    }
+    notifyListeners();
+  }
+
+  Future<void> _cargarDelServidor() async {
+    final fila = await supabase.from('miembros').select('hogar_id').eq('usuario_id', miUsuarioId).maybeSingle();
+    if (fila == null) {
+      hogar = null;
+      await _pararEscucha();
+      _vaciar();
+      return;
+    }
+    final id = fila['hogar_id'] as String;
+    final respuestas = await Future.wait([
+      supabase.from('hogares').select().eq('id', id).single(),
+      supabase.from('miembros').select().eq('hogar_id', id).order('unido_en'),
+      supabase.from('movimientos').select().eq('hogar_id', id),
+      supabase.from('planes').select().eq('hogar_id', id).order('creado_en'),
+      supabase.from('deudas').select().eq('hogar_id', id).order('creado_en'),
+      supabase.from('operaciones_deuda').select().eq('hogar_id', id),
+    ]);
+    hogar = Hogar.desdeMapa(respuestas[0] as Map<String, dynamic>);
+    List<Map<String, dynamic>> filas(int i) => (respuestas[i] as List).cast<Map<String, dynamic>>();
+    _aplicarMiembros(filas(1));
+    _aplicarMovimientos(filas(2));
+    _aplicarPlanes(filas(3));
+    _aplicarDeudas(filas(4));
+    _aplicarOperaciones(filas(5));
+    await _escuchar(id);
+  }
+
+  void _aplicarMiembros(List<Map<String, dynamic>> filas) {
+    miembros = [
+      for (var i = 0; i < filas.length; i++)
+        Miembro(
+          usuarioId: filas[i]['usuario_id'] as String,
+          nombre: filas[i]['nombre'] as String,
+          color: coloresPersona[i % coloresPersona.length],
+        ),
+    ];
+  }
+
+  void _aplicarMovimientos(List<Map<String, dynamic>> filas) {
+    movimientos = filas.map(Movimiento.desdeMapa).toList()
+      ..sort((a, b) {
+        final porFecha = b.fecha.compareTo(a.fecha);
+        return porFecha != 0 ? porFecha : b.id.compareTo(a.id);
+      });
+  }
+
+  void _aplicarPlanes(List<Map<String, dynamic>> filas) => planes = filas.map(Plan.desdeMapa).toList();
+
+  void _aplicarDeudas(List<Map<String, dynamic>> filas) => deudas = filas.map(Deuda.desdeMapa).toList();
+
+  void _aplicarOperaciones(List<Map<String, dynamic>> filas) {
+    operacionesDeuda = filas.map(OperacionDeuda.desdeMapa).toList()..sort((a, b) => b.fecha.compareTo(a.fecha));
+  }
+
+  Future<void> _escuchar(String hogarId) async {
+    await _pararEscucha();
+    void escuchar(String tabla, String clave, String orden, void Function(List<Map<String, dynamic>>) aplicar) {
       _suscripciones.add(
         supabase
             .from(tabla)
@@ -81,7 +140,7 @@ class DatosHogar extends ChangeNotifier {
             .order(orden, ascending: true)
             .listen(
               (filas) {
-                alRecibir(filas);
+                aplicar(filas);
                 error = null;
                 notifyListeners();
               },
@@ -93,36 +152,22 @@ class DatosHogar extends ChangeNotifier {
       );
     }
 
-    escuchar('miembros', 'usuario_id', 'unido_en', (filas) {
-      miembros = [
-        for (var i = 0; i < filas.length; i++)
-          Miembro(
-            usuarioId: filas[i]['usuario_id'] as String,
-            nombre: filas[i]['nombre'] as String,
-            color: coloresPersona[i % coloresPersona.length],
-          ),
-      ];
-    });
-    escuchar('movimientos', 'id', 'fecha', (filas) {
-      movimientos = filas.map(Movimiento.desdeMapa).toList()
-        ..sort((a, b) {
-          final porFecha = b.fecha.compareTo(a.fecha);
-          return porFecha != 0 ? porFecha : b.id.compareTo(a.id);
-        });
-    });
-    escuchar('planes', 'id', 'creado_en', (filas) => planes = filas.map(Plan.desdeMapa).toList());
-    escuchar('deudas', 'id', 'creado_en', (filas) => deudas = filas.map(Deuda.desdeMapa).toList());
-    escuchar('operaciones_deuda', 'id', 'fecha', (filas) {
-      operacionesDeuda = filas.map(OperacionDeuda.desdeMapa).toList()..sort((a, b) => b.fecha.compareTo(a.fecha));
-    });
+    escuchar('miembros', 'usuario_id', 'unido_en', _aplicarMiembros);
+    escuchar('movimientos', 'id', 'fecha', _aplicarMovimientos);
+    escuchar('planes', 'id', 'creado_en', _aplicarPlanes);
+    escuchar('deudas', 'id', 'creado_en', _aplicarDeudas);
+    escuchar('operaciones_deuda', 'id', 'fecha', _aplicarOperaciones);
   }
 
-  Future<void> _cancelar() async {
+  Future<void> _pararEscucha() async {
     final viejas = [..._suscripciones];
     _suscripciones.clear();
     for (final s in viejas) {
       await s.cancel();
     }
+  }
+
+  void _vaciar() {
     miembros = [];
     movimientos = [];
     planes = [];
@@ -305,7 +350,7 @@ class DatosHogar extends ChangeNotifier {
 
   @override
   void dispose() {
-    _cancelar();
+    _pararEscucha();
     super.dispose();
   }
 }

@@ -1,3 +1,8 @@
+import 'dart:convert';
+
+import 'package:finanzas_hogar/actualizar.dart';
+import 'package:finanzas_hogar/copia.dart';
+import 'package:finanzas_hogar/datos.dart';
 import 'package:finanzas_hogar/formato.dart';
 import 'package:finanzas_hogar/pantallas/login.dart';
 import 'package:finanzas_hogar/modelo.dart';
@@ -141,6 +146,56 @@ void main() {
     expect(visa.proximoPago(DateTime(2026, 2, 10)), DateTime(2026, 2, 28));
     expect(visa.proximoPago(DateTime(2026, 10, 31)), DateTime(2026, 10, 31));
     expect(visa.proximoPago(DateTime(2026, 11, 1)), DateTime(2026, 11, 30));
+  });
+
+  test('al anotar desde otro mes, la fecha empieza en ese mes', () {
+    final hoy = DateTime(2026, 10, 29);
+    expect(fechaInicialPara(DateTime(2026, 11), hoy), DateTime(2026, 11, 1));
+    expect(fechaInicialPara(DateTime(2026, 9), hoy), DateTime(2026, 9, 1));
+    expect(fechaInicialPara(DateTime(2026, 10), hoy), hoy);
+    expect(fechaInicialPara(null, hoy), hoy);
+  });
+
+  test('número de versión desde la etiqueta de GitHub', () {
+    expect(numeroDeEtiqueta('v12'), 12);
+    expect(numeroDeEtiqueta('7'), 7);
+    expect(numeroDeEtiqueta('latest'), null);
+  });
+
+  test('copia de seguridad: se exporta y se vuelve a leer', () {
+    final d = DatosHogar()
+      ..hogar = const Hogar(id: 'h', nombre: 'Casa', codigo: 'ABC123', moneda: 'MXN')
+      ..miembros = const [Miembro(usuarioId: 'a', nombre: 'Ale', color: Color(0xFF000000))]
+      ..movimientos = [
+        Movimiento(
+          id: 'm',
+          usuarioId: 'a',
+          tipo: TipoMovimiento.ingreso,
+          categoria: 'salario',
+          monto: 1500.5,
+          nota: 'TUI',
+          fecha: DateTime(2026, 11, 1),
+        ),
+      ]
+      ..deudas = const [
+        Deuda(
+          id: 'd',
+          usuarioId: 'a',
+          nombre: 'Visa',
+          tipo: TipoDeuda.tarjeta,
+          limite: null,
+          saldoInicial: 10,
+          diaPago: 5,
+        ),
+      ];
+    final bytes = utf8.encode(jsonEncode(copiaDelHogar(d, DateTime(2026, 11, 2))));
+    final leida = leerCopia(bytes);
+    expect(leida['hogar']['moneda'], 'MXN');
+    expect(leida['movimientos'][0]['fecha'], '2026-11-01');
+    expect(leida['movimientos'][0]['monto'], 1500.5);
+    expect(leida['deudas'][0]['tipo'], 'tarjeta');
+    expect(() => leerCopia(utf8.encode('{"app": "otra"}')), throwsFormatException);
+    expect(() => leerCopia(utf8.encode('no es json')), throwsFormatException);
   });
 
   testWidgets('la pantalla de entrada se muestra', (tester) async {

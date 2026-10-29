@@ -5,6 +5,9 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   apk:
     runs-on: ubuntu-latest
@@ -19,8 +22,18 @@ jobs:
           channel: stable
       - run: flutter pub get
       - run: flutter test
-      - run: flutter build apk --release
+      # El número de compilación es el que usa el botón "Buscar actualización".
+      - run: flutter build apk --release --build-name=1.0.${{ github.run_number }} --build-number=${{ github.run_number }}
+      - run: cp build/app/outputs/flutter-apk/app-release.apk finanzas-hogar.apk
       - uses: actions/upload-artifact@v4
         with:
           name: finanzas-hogar-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: finanzas-hogar.apk
+      # Publica el APK como versión descargable sin iniciar sesión en GitHub.
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ github.run_number }}
+          name: Versión 1.0.${{ github.run_number }}
+          body: ${{ github.event.head_commit.message }}
+          files: finanzas-hogar.apk
+          make_latest: true

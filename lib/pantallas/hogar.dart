@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'package:flutter/foundation.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+
+import '../actualizar.dart';
+import '../copia.dart';
 import '../datos.dart';
 import 'configurar_hogar.dart';
 
@@ -33,6 +38,29 @@ class PestanaHogar extends StatelessWidget {
     }
   }
 
+  Future<void> _importar(BuildContext context) async {
+    final mensajero = ScaffoldMessenger.of(context);
+    try {
+      final r = await importarCopia(datos);
+      if (r == null) return;
+      final total = r.values.fold<int>(0, (s, n) => s + (n as int));
+      mensajero.showSnackBar(
+        SnackBar(
+          content: Text(
+            total == 0
+                ? 'Todo lo de la copia ya estaba en la app.'
+                : 'Copia cargada: ${r['movimientos']} movimientos, ${r['planes']} del plan, '
+                      '${r['deudas']} deudas y ${r['operaciones']} pagos.',
+          ),
+        ),
+      );
+    } on FormatException catch (e) {
+      mensajero.showSnackBar(SnackBar(content: Text(e.message)));
+    } catch (e) {
+      mensajero.showSnackBar(SnackBar(content: Text(mensajeDeError(e))));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final hogar = datos.hogar!;
@@ -41,6 +69,7 @@ class PestanaHogar extends StatelessWidget {
     final yo = datos.miembro(miUsuarioId);
 
     return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(16),
       children: [
         Card(
@@ -134,6 +163,46 @@ class PestanaHogar extends StatelessWidget {
           leading: const Icon(Icons.person),
           title: const Text('Sesión iniciada como'),
           subtitle: Text(supabase.auth.currentUser?.email ?? ''),
+        ),
+        const Divider(height: 32),
+        Text('Copia de seguridad', style: t.titleMedium),
+        const SizedBox(height: 4),
+        Text(
+          'Tus datos ya se guardan en el servidor. Además puedes guardar una copia en un archivo '
+          '(en Archivos, Drive, WhatsApp…) y cargarla cuando quieras: no se duplica nada.',
+          style: t.bodySmall?.copyWith(color: c.onSurfaceVariant),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: FilledButton.tonalIcon(
+                icon: const Icon(Icons.upload_file),
+                label: const Text('Exportar'),
+                onPressed: () => _intentar(context, () => exportarCopia(datos)),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: OutlinedButton.icon(
+                icon: const Icon(Icons.download),
+                label: const Text('Importar'),
+                onPressed: () => _importar(context),
+              ),
+            ),
+          ],
+        ),
+        const Divider(height: 32),
+        FutureBuilder<PackageInfo>(
+          future: PackageInfo.fromPlatform(),
+          builder: (context, info) => ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.system_update),
+            title: Text(kIsWeb ? 'Cargar la última versión' : 'Buscar actualización'),
+            subtitle: Text('Versión ${info.data?.version ?? '…'}'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => comprobarActualizacion(context),
+          ),
         ),
         const SizedBox(height: 16),
         OutlinedButton.icon(

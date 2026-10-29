@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import 'package:flutter/foundation.dart';
+
+import '../actualizar.dart';
 import '../datos.dart';
 import '../formato.dart';
 import 'deudas.dart';
@@ -22,11 +25,26 @@ class _PantallaInicioState extends State<PantallaInicio> {
   int _pestana = 0;
   DateTime _mes = DateTime(DateTime.now().year, DateTime.now().month);
 
+  @override
+  void initState() {
+    super.initState();
+    // En Android, avisar al abrir si hay una versión nueva del APK.
+    if (!kIsWeb) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) comprobarActualizacion(context, silencioso: true);
+      });
+    }
+  }
+
   void _moverMes(int delta) => setState(() => _mes = DateTime(_mes.year, _mes.month + delta));
 
   void _nuevo() {
-    Navigator.of(context)
-        .push(MaterialPageRoute(builder: (_) => PantallaEditarMovimiento(datos: widget.datos), fullscreenDialog: true));
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => PantallaEditarMovimiento(datos: widget.datos, mes: _mes),
+        fullscreenDialog: true,
+      ),
+    );
   }
 
   @override
@@ -37,6 +55,7 @@ class _PantallaInicioState extends State<PantallaInicio> {
     return Scaffold(
       appBar: AppBar(
         title: Text(datos.hogar!.nombre),
+        actions: [IconButton(tooltip: 'Actualizar datos', icon: const Icon(Icons.refresh), onPressed: datos.refrescar)],
         bottom: conMes
             ? PreferredSize(
                 preferredSize: const Size.fromHeight(48),
@@ -64,15 +83,18 @@ class _PantallaInicioState extends State<PantallaInicio> {
               )
             : null,
       ),
-      body: ListenableBuilder(
-        listenable: datos,
-        builder: (context, _) => switch (_pestana) {
-          0 => PestanaResumen(datos: datos, mes: _mes, irA: (i) => setState(() => _pestana = i)),
-          1 => PestanaMovimientos(datos: datos, mes: _mes),
-          2 => PestanaPlan(datos: datos, mes: _mes),
-          3 => PestanaDeudas(datos: datos),
-          _ => PestanaHogar(datos: datos),
-        },
+      body: RefreshIndicator(
+        onRefresh: datos.refrescar,
+        child: ListenableBuilder(
+          listenable: datos,
+          builder: (context, _) => switch (_pestana) {
+            0 => PestanaResumen(datos: datos, mes: _mes, irA: (i) => setState(() => _pestana = i)),
+            1 => PestanaMovimientos(datos: datos, mes: _mes),
+            2 => PestanaPlan(datos: datos, mes: _mes),
+            3 => PestanaDeudas(datos: datos),
+            _ => PestanaHogar(datos: datos),
+          },
+        ),
       ),
       floatingActionButton: switch (_pestana) {
         0 ||

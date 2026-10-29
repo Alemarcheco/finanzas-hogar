@@ -60,10 +60,21 @@ class _PestanaMovimientosState extends State<PestanaMovimientos> {
         ),
         Expanded(
           child: lista.isEmpty
-              ? Center(
-                  child: Text('No hay movimientos', style: TextStyle(color: Theme.of(context).colorScheme.outline)),
+              ? ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(top: 64),
+                      child: Text(
+                        'No hay movimientos',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Theme.of(context).colorScheme.outline),
+                      ),
+                    ),
+                  ],
                 )
               : ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.only(bottom: 96),
                   children: [
                     for (final dia in grupos.keys) ...[

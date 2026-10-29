@@ -40,3 +40,9 @@ double? leerMonto(String texto) {
   }
   return double.tryParse(t);
 }
+
+/// Fecha propuesta al anotar mirando [mes]: hoy si es el mes actual, si no el día 1 de ese mes.
+DateTime fechaInicialPara(DateTime? mes, DateTime hoy) {
+  if (mes == null || (mes.year == hoy.year && mes.month == hoy.month)) return hoy;
+  return DateTime(mes.year, mes.month, 1);
+}

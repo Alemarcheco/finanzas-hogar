@@ -10,7 +10,10 @@ class PantallaEditarMovimiento extends StatefulWidget {
   final DatosHogar datos;
   final Movimiento? movimiento;
 
-  const PantallaEditarMovimiento({super.key, required this.datos, this.movimiento});
+  /// Mes que se estaba mirando al pulsar "Anotar": si no es el actual, la fecha empieza en ese mes.
+  final DateTime? mes;
+
+  const PantallaEditarMovimiento({super.key, required this.datos, this.movimiento, this.mes});
 
   @override
   State<PantallaEditarMovimiento> createState() => _PantallaEditarMovimientoState();
@@ -31,7 +34,7 @@ class _PantallaEditarMovimientoState extends State<PantallaEditarMovimiento> {
     final m = widget.movimiento;
     _tipo = m?.tipo ?? TipoMovimiento.gasto;
     _categoria = m?.categoria ?? categoriasGasto.first.clave;
-    _fecha = m?.fecha ?? DateTime.now();
+    _fecha = m?.fecha ?? fechaInicialPara(widget.mes, DateTime.now());
     _deudaId = m?.deudaId;
     if (m != null) {
       _monto.text = m.monto.abs().toStringAsFixed(2).replaceAll('.', ',').replaceAll(',00', '');

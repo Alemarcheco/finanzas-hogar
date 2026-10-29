@@ -215,10 +215,87 @@ as $$
   delete from miembros where usuario_id = auth.uid();
 $$;
 
+-- Cargar una copia de seguridad (archivo .json exportado desde la app) -------
+-- Añade al hogar actual lo que falte; lo que ya existe (mismo id) no se toca,
+-- así que cargar dos veces la misma copia no duplica nada.
+-- Cada cosa se asigna a la misma persona si sigue en el hogar (por id o por
+-- nombre); si no, a quien carga la copia.
+create or replace function public.importar_copia(p_copia jsonb)
+returns jsonb
+language plpgsql security definer set search_path = public
+as $$
+declare
+  v_hogar uuid := public.mi_hogar();
+  v_mapa jsonb := '{}';
+  v_usuario uuid;
+  r jsonb;
+  n_deudas int; n_movimientos int; n_planes int; n_operaciones int;
+begin
+  if auth.uid() is null or v_hogar is null then
+    raise exception 'Hay que pertenecer a un hogar';
+  end if;
+  if p_copia->>'app' is distinct from 'finanzas-hogar' then
+    raise exception 'Este archivo no es una copia de Finanzas del Hogar';
+  end if;
+
+  -- Personas de la copia -> personas del hogar actual
+  for r in select * from jsonb_array_elements(coalesce(p_copia->'miembros', '[]'))
+  loop
+    select m.usuario_id into v_usuario from miembros m
+      where m.hogar_id = v_hogar
+        and (m.usuario_id::text = r->>'usuario_id' or lower(trim(m.nombre)) = lower(trim(r->>'nombre')))
+      order by (m.usuario_id::text = r->>'usuario_id') desc
+      limit 1;
+    v_mapa := v_mapa || jsonb_build_object(r->>'usuario_id', coalesce(v_usuario, auth.uid()));
+  end loop;
+  select v_mapa || coalesce(jsonb_object_agg(usuario_id::text, usuario_id), '{}') into v_mapa
+    from miembros where hogar_id = v_hogar;
+
+  insert into deudas (id, hogar_id, usuario_id, nombre, tipo, limite, saldo_inicial, dia_pago)
+  select (x->>'id')::uuid, v_hogar,
+         coalesce((v_mapa->>(x->>'usuario_id'))::uuid, auth.uid()),
+         x->>'nombre', coalesce(x->>'tipo', 'otra'), (x->>'limite')::numeric,
+         coalesce((x->>'saldo_inicial')::numeric, 0), (x->>'dia_pago')::int
+    from jsonb_array_elements(coalesce(p_copia->'deudas', '[]')) x
+  on conflict (id) do nothing;
+  get diagnostics n_deudas = row_count;
+
+  insert into movimientos (id, hogar_id, usuario_id, tipo, categoria, monto, nota, fecha, deuda_id)
+  select (x->>'id')::uuid, v_hogar,
+         coalesce((v_mapa->>(x->>'usuario_id'))::uuid, auth.uid()),
+         x->>'tipo', x->>'categoria', (x->>'monto')::numeric, coalesce(x->>'nota', ''), (x->>'fecha')::date,
+         (select d.id from deudas d where d.id::text = x->>'deuda_id' and d.hogar_id = v_hogar)
+    from jsonb_array_elements(coalesce(p_copia->'movimientos', '[]')) x
+  on conflict (id) do nothing;
+  get diagnostics n_movimientos = row_count;
+
+  insert into planes (id, hogar_id, usuario_id, mes, tipo, categoria, monto, nota)
+  select (x->>'id')::uuid, v_hogar, auth.uid(), (x->>'mes')::date, x->>'tipo', x->>'categoria',
+         (x->>'monto')::numeric, coalesce(x->>'nota', '')
+    from jsonb_array_elements(coalesce(p_copia->'planes', '[]')) x
+  on conflict (id) do nothing;
+  get diagnostics n_planes = row_count;
+
+  insert into operaciones_deuda (id, hogar_id, deuda_id, usuario_id, tipo, monto, nota, fecha)
+  select (x->>'id')::uuid, v_hogar, d.id,
+         coalesce((v_mapa->>(x->>'usuario_id'))::uuid, auth.uid()),
+         x->>'tipo', (x->>'monto')::numeric, coalesce(x->>'nota', ''), (x->>'fecha')::date
+    from jsonb_array_elements(coalesce(p_copia->'operaciones_deuda', '[]')) x
+    join deudas d on d.id::text = x->>'deuda_id' and d.hogar_id = v_hogar
+  on conflict (id) do nothing;
+  get diagnostics n_operaciones = row_count;
+
+  return jsonb_build_object(
+    'movimientos', n_movimientos, 'planes', n_planes, 'deudas', n_deudas, 'operaciones', n_operaciones
+  );
+end;
+$$;
+
 grant execute on function public.mi_hogar() to authenticated;
 grant execute on function public.crear_hogar(text, text, text) to authenticated;
 grant execute on function public.unirse_hogar(text, text) to authenticated;
 grant execute on function public.salir_hogar() to authenticated;
+grant execute on function public.importar_copia(jsonb) to authenticated;
 
 -- Actualización en vivo: lo que anota uno aparece al momento en el otro teléfono
 do $$

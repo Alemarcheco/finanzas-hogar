@@ -39,6 +39,7 @@ class PestanaDeudas extends StatelessWidget {
 
     if (datos.deudas.isEmpty) {
       return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(24, 32, 24, 96),
         children: [
           Icon(Icons.credit_card, size: 64, color: c.outline),
@@ -68,6 +69,7 @@ class PestanaDeudas extends StatelessWidget {
     }.toList();
 
     return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
       children: [
         Card(
@@ -271,6 +273,7 @@ class PantallaDetalleDeuda extends StatelessWidget {
         ],
       ),
       body: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(16),
         children: [
           Card(
@@ -568,6 +571,7 @@ class _PantallaEditarDeudaState extends State<PantallaEditarDeuda> {
         ],
       ),
       body: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(16),
         children: [
           SegmentedButton<TipoDeuda>(

@@ -24,6 +24,7 @@ class PestanaResumen extends StatelessWidget {
     final hayDatos = r.ingresos != 0 || r.gastos != 0 || r.ahorroMes != 0;
 
     return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
       children: [
         if (datos.error != null) _AvisoError(datos.error!),

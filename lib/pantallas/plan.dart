@@ -56,6 +56,7 @@ class PestanaPlan extends StatelessWidget {
 
     if (r.vacio) {
       return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(24, 32, 24, 96),
         children: [
           Icon(Icons.event_note, size: 64, color: c.outline),
@@ -93,6 +94,7 @@ class PestanaPlan extends StatelessWidget {
     final gastoPrevisto = r.previsto(TipoMovimiento.gasto);
     final gastoReal = r.real(TipoMovimiento.gasto);
     return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
       children: [
         Card(
@@ -422,6 +424,7 @@ class _PantallaEditarPlanState extends State<PantallaEditarPlan> {
         ],
       ),
       body: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(16),
         children: [
           SegmentedButton<TipoMovimiento>(

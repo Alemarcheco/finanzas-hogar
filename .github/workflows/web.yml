@@ -26,7 +26,7 @@ jobs:
         with:
           channel: stable
       - run: flutter pub get
-      - run: flutter build web --release --base-href "/${{ github.event.repository.name }}/"
+      - run: flutter build web --release --base-href "/${{ github.event.repository.name }}/" --build-name=1.0.${{ github.run_number }} --build-number=${{ github.run_number }}
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

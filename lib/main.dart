@@ -68,17 +68,25 @@ class _ConHogar extends StatefulWidget {
   State<_ConHogar> createState() => _ConHogarState();
 }
 
-class _ConHogarState extends State<_ConHogar> {
+class _ConHogarState extends State<_ConHogar> with WidgetsBindingObserver {
   final datos = DatosHogar();
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     datos.cargar();
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState estado) {
+    // Al volver a la app, la conexión en vivo puede estar cortada: se pide todo de nuevo.
+    if (estado == AppLifecycleState.resumed && !datos.cargando) datos.refrescar();
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     datos.dispose();
     super.dispose();
   }
