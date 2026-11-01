@@ -169,6 +169,11 @@ class _FilaMovimiento extends StatelessWidget {
             const Icon(Icons.credit_card, size: 14),
             const SizedBox(width: 2),
             Flexible(child: Text(tarjeta.nombre, overflow: TextOverflow.ellipsis)),
+          ] else if (m.cuenta case final cuenta?) ...[
+            const SizedBox(width: 6),
+            const Icon(Icons.account_balance, size: 14),
+            const SizedBox(width: 2),
+            Flexible(child: Text(cuenta, overflow: TextOverflow.ellipsis)),
           ],
         ],
       ),

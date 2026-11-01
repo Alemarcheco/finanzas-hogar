@@ -33,6 +33,9 @@ String mensajeDeError(Object error) {
   if (error is PostgrestException) {
     if (error.message.contains('No existe ningún hogar')) return 'No existe ningún hogar con ese código.';
     if (error.message.contains('Ya perteneces')) return 'Ya perteneces a un hogar.';
+    if (error.message.contains("'cuenta' column")) {
+      return 'Falta actualizar la base de datos: vuelve a pegar esquema.sql en Supabase y pulsa Run.';
+    }
     return error.message;
   }
   final texto = error.toString();
@@ -231,7 +234,9 @@ class DatosHogar extends ChangeNotifier {
     required String nota,
     required DateTime fecha,
     String? deudaId,
+    String? cuenta,
   }) async {
+    final conTarjeta = tipo == TipoMovimiento.gasto && deudaId != null;
     final datos = {
       'tipo': tipo.name,
       'categoria': categoria,
@@ -239,6 +244,10 @@ class DatosHogar extends ChangeNotifier {
       'nota': nota,
       'fecha': fechaIso(fecha),
       'deuda_id': tipo == TipoMovimiento.gasto ? deudaId : null,
+      // Solo se manda si hay cuenta (o si se edita), para que funcione aunque
+      // aún no se haya añadido la columna en la base de datos.
+      if ((cuenta != null && !conTarjeta) || (id != null && movimientos.any((m) => m.id == id && m.cuenta != null)))
+        'cuenta': conTarjeta ? null : cuenta,
     };
     if (id == null) {
       await supabase.from('movimientos').insert({...datos, 'hogar_id': hogar!.id, 'usuario_id': miUsuarioId});
@@ -246,6 +255,15 @@ class DatosHogar extends ChangeNotifier {
       await supabase.from('movimientos').update(datos).eq('id', id);
     }
     await _actualizarTrasGuardar();
+  }
+
+  /// Cuentas de débito ya usadas en el hogar, de la más usada a la menos.
+  List<String> get cuentas {
+    final veces = <String, int>{};
+    for (final m in movimientos) {
+      if (m.cuenta case final c?) veces[c] = (veces[c] ?? 0) + 1;
+    }
+    return veces.keys.toList()..sort((a, b) => veces[b]!.compareTo(veces[a]!));
   }
 
   Future<void> borrarMovimiento(String id) async {

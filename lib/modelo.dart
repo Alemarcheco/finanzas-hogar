@@ -105,6 +105,9 @@ class Movimiento {
   /// Tarjeta o deuda con la que se pagó este gasto (si se pagó a crédito).
   final String? deudaId;
 
+  /// Cuenta o tarjeta de débito donde entró el ingreso o de donde salió el gasto.
+  final String? cuenta;
+
   const Movimiento({
     required this.id,
     required this.usuarioId,
@@ -114,6 +117,7 @@ class Movimiento {
     required this.nota,
     required this.fecha,
     this.deudaId,
+    this.cuenta,
   });
 
   factory Movimiento.desdeMapa(Map<String, dynamic> m) => Movimiento(
@@ -125,6 +129,7 @@ class Movimiento {
     nota: (m['nota'] as String?) ?? '',
     fecha: DateTime.parse(m['fecha'] as String),
     deudaId: m['deuda_id'] as String?,
+    cuenta: (m['cuenta'] as String?)?.trim().isEmpty ?? true ? null : (m['cuenta'] as String).trim(),
   );
 
   bool esDelMes(DateTime mes) => fecha.year == mes.year && fecha.month == mes.month;

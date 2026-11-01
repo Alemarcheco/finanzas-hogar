@@ -24,6 +24,7 @@ class _PantallaEditarMovimientoState extends State<PantallaEditarMovimiento> {
   late String _categoria;
   late DateTime _fecha;
   String? _deudaId;
+  String? _cuenta;
   final _monto = TextEditingController();
   final _nota = TextEditingController();
   bool _ocupado = false;
@@ -36,6 +37,7 @@ class _PantallaEditarMovimientoState extends State<PantallaEditarMovimiento> {
     _categoria = m?.categoria ?? categoriasGasto.first.clave;
     _fecha = m?.fecha ?? fechaInicialPara(widget.mes, DateTime.now());
     _deudaId = m?.deudaId;
+    _cuenta = m?.cuenta;
     if (m != null) {
       _monto.text = m.monto.abs().toStringAsFixed(2).replaceAll('.', ',').replaceAll(',00', '');
       _nota.text = m.nota;
@@ -48,6 +50,100 @@ class _PantallaEditarMovimientoState extends State<PantallaEditarMovimiento> {
     for (final d in widget.datos.deudas)
       if (d.tipo == TipoDeuda.tarjeta || d.id == _deudaId) d,
   ];
+
+  List<String> get _cuentas => [
+    ...widget.datos.cuentas,
+    if (_cuenta != null && !widget.datos.cuentas.contains(_cuenta)) _cuenta!,
+  ];
+
+  Future<void> _nuevaCuenta() async {
+    final nombre = TextEditingController();
+    final elegido = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Nueva cuenta o tarjeta de débito'),
+        content: TextField(
+          controller: nombre,
+          autofocus: true,
+          textCapitalization: TextCapitalization.words,
+          decoration: const InputDecoration(labelText: 'Nombre', hintText: 'Ej.: BBVA débito, Nómina Santander'),
+          onSubmitted: (v) => Navigator.of(context).pop(v.trim()),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancelar')),
+          FilledButton(onPressed: () => Navigator.of(context).pop(nombre.text.trim()), child: const Text('Añadir')),
+        ],
+      ),
+    );
+    if (elegido != null && elegido.isNotEmpty) {
+      setState(() {
+        _cuenta = elegido;
+        _deudaId = null;
+      });
+    }
+  }
+
+  Widget _selectorCuenta(TextTheme t, ColorScheme c) {
+    final esGasto = _tipo == TipoMovimiento.gasto;
+    String quien(String usuarioId) => widget.datos.miembro(usuarioId).nombre;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 20),
+        Text(esGasto ? '¿Cómo lo pagaste?' : '¿A qué cuenta entró?', style: t.titleSmall),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            ChoiceChip(
+              avatar: const Icon(Icons.payments, size: 18),
+              label: Text(esGasto ? 'Efectivo' : 'Efectivo / sin indicar'),
+              selected: _cuenta == null && _deudaId == null,
+              onSelected: (_) => setState(() {
+                _cuenta = null;
+                _deudaId = null;
+              }),
+            ),
+            for (final cuenta in _cuentas)
+              ChoiceChip(
+                avatar: const Icon(Icons.account_balance, size: 18),
+                label: Text(cuenta),
+                selected: _cuenta == cuenta && _deudaId == null,
+                onSelected: (_) => setState(() {
+                  _cuenta = cuenta;
+                  _deudaId = null;
+                }),
+              ),
+            if (esGasto)
+              for (final d in _tarjetas)
+                ChoiceChip(
+                  avatar: Icon(iconosTipoDeuda[d.tipo], size: 18),
+                  label: Text('${d.nombre} (${quien(d.usuarioId)})'),
+                  selected: _deudaId == d.id,
+                  onSelected: (_) => setState(() {
+                    _deudaId = d.id;
+                    _cuenta = null;
+                  }),
+                ),
+            ActionChip(
+              avatar: const Icon(Icons.add, size: 18),
+              label: const Text('Nueva cuenta de débito'),
+              onPressed: _nuevaCuenta,
+            ),
+          ],
+        ),
+        if (esGasto && _deudaId != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              'Se sumará a lo que se debe de esa tarjeta.',
+              style: t.bodySmall?.copyWith(color: c.onSurfaceVariant),
+            ),
+          ),
+      ],
+    );
+  }
 
   void _cambiarTipo(TipoMovimiento tipo) {
     setState(() {
@@ -82,6 +178,7 @@ class _PantallaEditarMovimientoState extends State<PantallaEditarMovimiento> {
         nota: _nota.text.trim(),
         fecha: _fecha,
         deudaId: _deudaId,
+        cuenta: _tipo == TipoMovimiento.ahorro ? null : _cuenta,
       );
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
@@ -150,38 +247,7 @@ class _PantallaEditarMovimientoState extends State<PantallaEditarMovimiento> {
             elegida: _categoria,
             alElegir: (clave) => setState(() => _categoria = clave),
           ),
-          if (_tipo == TipoMovimiento.gasto && _tarjetas.isNotEmpty) ...[
-            const SizedBox(height: 20),
-            Text('¿Cómo lo pagaste?', style: t.titleSmall),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                ChoiceChip(
-                  avatar: const Icon(Icons.payments, size: 18),
-                  label: const Text('Efectivo / débito'),
-                  selected: _deudaId == null,
-                  onSelected: (_) => setState(() => _deudaId = null),
-                ),
-                for (final d in _tarjetas)
-                  ChoiceChip(
-                    avatar: Icon(iconosTipoDeuda[d.tipo], size: 18),
-                    label: Text('${d.nombre} (${widget.datos.miembro(d.usuarioId).nombre})'),
-                    selected: _deudaId == d.id,
-                    onSelected: (_) => setState(() => _deudaId = d.id),
-                  ),
-              ],
-            ),
-            if (_deudaId != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 6),
-                child: Text(
-                  'Se sumará a lo que se debe de esa tarjeta.',
-                  style: t.bodySmall?.copyWith(color: c.onSurfaceVariant),
-                ),
-              ),
-          ],
+          if (_tipo != TipoMovimiento.ahorro) _selectorCuenta(t, c),
           const SizedBox(height: 20),
           ListTile(
             contentPadding: EdgeInsets.zero,
