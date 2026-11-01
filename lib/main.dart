@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -8,12 +10,19 @@ import 'datos.dart';
 import 'pantallas/configurar_hogar.dart';
 import 'pantallas/inicio.dart';
 import 'pantallas/login.dart';
+import 'pantallas/recuperar_clave.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('es');
   if (servidorConfigurado) {
-    await Supabase.initialize(url: supabaseUrl, publishableKey: supabaseKey);
+    // Flujo "implicit": así el enlace del correo para recuperar la contraseña
+    // funciona aunque se abra en otro teléfono o navegador.
+    await Supabase.initialize(
+      url: supabaseUrl,
+      publishableKey: supabaseKey,
+      authOptions: const FlutterAuthClientOptions(authFlowType: AuthFlowType.implicit),
+    );
   }
   runApp(const FinanzasHogarApp());
 }
@@ -45,8 +54,31 @@ class FinanzasHogarApp extends StatelessWidget {
 }
 
 /// Muestra el login, la elección de hogar o la app según el estado.
-class PuertaSesion extends StatelessWidget {
+class PuertaSesion extends StatefulWidget {
   const PuertaSesion({super.key});
+
+  @override
+  State<PuertaSesion> createState() => _PuertaSesionState();
+}
+
+class _PuertaSesionState extends State<PuertaSesion> {
+  /// Se abrió el enlace del correo de recuperar contraseña: pedir la nueva.
+  bool _ponerClaveNueva = false;
+  late final StreamSubscription<AuthState> _aviso;
+
+  @override
+  void initState() {
+    super.initState();
+    _aviso = supabase.auth.onAuthStateChange.listen((e) {
+      if (e.event == AuthChangeEvent.passwordRecovery && mounted) setState(() => _ponerClaveNueva = true);
+    }, onError: (_) {});
+  }
+
+  @override
+  void dispose() {
+    _aviso.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -55,6 +87,9 @@ class PuertaSesion extends StatelessWidget {
       builder: (context, _) {
         final usuario = supabase.auth.currentUser;
         if (usuario == null) return const PantallaLogin();
+        if (_ponerClaveNueva) {
+          return PantallaClaveNueva(alTerminar: () => setState(() => _ponerClaveNueva = false));
+        }
         return _ConHogar(key: ValueKey(usuario.id));
       },
     );
