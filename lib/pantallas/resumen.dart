@@ -227,10 +227,15 @@ class _Cifra extends StatelessWidget {
               Text(titulo, style: TextStyle(fontSize: 12, color: c.onPrimaryContainer)),
             ],
           ),
-          FittedBox(
-            child: Text(
-              dinero(valor, moneda),
-              style: TextStyle(fontWeight: FontWeight.w600, color: c.onPrimaryContainer),
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(
+                dinero(valor, moneda),
+                style: TextStyle(fontWeight: FontWeight.w600, color: c.onPrimaryContainer),
+              ),
             ),
           ),
         ],

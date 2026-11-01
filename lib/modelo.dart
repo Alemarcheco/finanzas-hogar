@@ -396,7 +396,8 @@ class Disponible {
   /// Ingresos − gastos pagados en efectivo o débito − ahorro − pagos a tarjetas y deudas.
   final double debito;
 
-  /// Lo que queda por usar en las tarjetas con límite (hoy).
+  /// Lo que queda por usar en las tarjetas con límite (hoy). Una tarjeta
+  /// pasada de su límite cuenta como 0, no resta de las demás.
   final double credito;
 
   /// Límite total de esas tarjetas; 0 si ninguna tiene límite.
@@ -446,7 +447,8 @@ class Disponible {
       final limite = d.limite;
       if (d.tipo != TipoDeuda.tarjeta || limite == null || limite <= 0) continue;
       limiteTotal += limite;
-      credito += limite - d.saldo(movimientos, operaciones);
+      final libre = limite - d.saldo(movimientos, operaciones);
+      if (libre > 0) credito += libre;
     }
     return Disponible(
       debito: debito,

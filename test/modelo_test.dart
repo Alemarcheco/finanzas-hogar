@@ -264,6 +264,19 @@ void main() {
     expect(d.limiteTotal, 10000);
     expect(d.gastosConTarjeta, 1000);
     expect(d.pagosDeudas, 4500);
+
+    // Una tarjeta pasada del límite no resta crédito de las demás.
+    const pasada = Deuda(
+      id: 'bbva',
+      usuarioId: 'a',
+      nombre: 'Bbva',
+      tipo: TipoDeuda.tarjeta,
+      limite: 35200,
+      saldoInicial: 50000,
+      diaPago: null,
+    );
+    final d2 = Disponible.calcular(movs, ops, [plata, coche, pasada], mes);
+    expect(d2.credito, 7000);
   });
 
   testWidgets('la pantalla de entrada se muestra', (tester) async {
