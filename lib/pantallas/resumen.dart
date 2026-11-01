@@ -28,7 +28,13 @@ class PestanaResumen extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
       children: [
         if (datos.error != null) _AvisoError(datos.error!),
-        _TarjetaBalance(r: r, anterior: anterior, moneda: moneda),
+        _TarjetaBalance(
+          r: r,
+          anterior: anterior,
+          disponible: Disponible.calcular(datos.movimientos, datos.operacionesDeuda, datos.deudas, mes),
+          moneda: moneda,
+          irADeudas: () => irA(3),
+        ),
         const SizedBox(height: 12),
         _TarjetaAhorro(r: r, moneda: moneda),
         const SizedBox(height: 12),
@@ -68,9 +74,17 @@ class _AvisoError extends StatelessWidget {
 class _TarjetaBalance extends StatelessWidget {
   final Resumen r;
   final Resumen anterior;
+  final Disponible disponible;
   final String moneda;
+  final VoidCallback irADeudas;
 
-  const _TarjetaBalance({required this.r, required this.anterior, required this.moneda});
+  const _TarjetaBalance({
+    required this.r,
+    required this.anterior,
+    required this.disponible,
+    required this.moneda,
+    required this.irADeudas,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -90,17 +104,87 @@ class _TarjetaBalance extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Queda libre este mes', style: t.titleSmall?.copyWith(color: c.onPrimaryContainer)),
-            const SizedBox(height: 4),
-            FittedBox(
-              child: Text(
-                dinero(r.disponible, moneda),
-                style: t.displaySmall?.copyWith(
-                  color: r.disponible < 0 ? rojoGasto : c.onPrimaryContainer,
-                  fontWeight: FontWeight.bold,
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.account_balance_wallet, size: 16, color: c.onPrimaryContainer),
+                          const SizedBox(width: 4),
+                          Text('Débito disponible', style: t.titleSmall?.copyWith(color: c.onPrimaryContainer)),
+                        ],
+                      ),
+                      FittedBox(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          dinero(disponible.debito, moneda),
+                          style: t.headlineMedium?.copyWith(
+                            color: disponible.debito < 0 ? rojoGasto : c.onPrimaryContainer,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 2,
+                  child: InkWell(
+                    onTap: irADeudas,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.credit_card, size: 16, color: c.onPrimaryContainer),
+                            const SizedBox(width: 4),
+                            Flexible(
+                              child: Text(
+                                'Crédito disponible',
+                                style: t.titleSmall?.copyWith(color: c.onPrimaryContainer),
+                              ),
+                            ),
+                          ],
+                        ),
+                        FittedBox(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            disponible.limiteTotal > 0 ? dinero(disponible.credito, moneda) : '—',
+                            style: t.headlineSmall?.copyWith(
+                              color: disponible.credito < 0 ? rojoGasto : c.onPrimaryContainer,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          disponible.limiteTotal > 0
+                              ? 'de ${dinero(disponible.limiteTotal, moneda)}'
+                              : 'Pon el límite en tus tarjetas',
+                          style: t.bodySmall?.copyWith(color: c.onPrimaryContainer),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
+            if (disponible.gastosConTarjeta > 0 || disponible.pagosDeudas > 0) ...[
+              const SizedBox(height: 8),
+              Text(
+                [
+                  if (disponible.gastosConTarjeta > 0)
+                    'Gastado con tarjeta: ${dinero(disponible.gastosConTarjeta, moneda)}',
+                  if (disponible.pagosDeudas > 0) 'Pagos a tarjetas: ${dinero(disponible.pagosDeudas, moneda)}',
+                ].join(' · '),
+                style: t.bodySmall?.copyWith(color: c.onPrimaryContainer),
+              ),
+            ],
             const SizedBox(height: 16),
             Row(
               children: [

@@ -80,6 +80,10 @@ create table if not exists public.operaciones_deuda (
 );
 create index if not exists operaciones_deuda_hogar_idx on public.operaciones_deuda(hogar_id);
 
+-- Pago que además se anotó como gasto del mes (para no contarlo dos veces)
+alter table public.operaciones_deuda
+  add column if not exists es_gasto boolean not null default false;
+
 -- Un gasto pagado con tarjeta suma a la deuda de esa tarjeta
 alter table public.movimientos
   add column if not exists deuda_id uuid references public.deudas(id) on delete set null;
@@ -276,10 +280,11 @@ begin
   on conflict (id) do nothing;
   get diagnostics n_planes = row_count;
 
-  insert into operaciones_deuda (id, hogar_id, deuda_id, usuario_id, tipo, monto, nota, fecha)
+  insert into operaciones_deuda (id, hogar_id, deuda_id, usuario_id, tipo, monto, nota, fecha, es_gasto)
   select (x->>'id')::uuid, v_hogar, d.id,
          coalesce((v_mapa->>(x->>'usuario_id'))::uuid, auth.uid()),
-         x->>'tipo', (x->>'monto')::numeric, coalesce(x->>'nota', ''), (x->>'fecha')::date
+         x->>'tipo', (x->>'monto')::numeric, coalesce(x->>'nota', ''), (x->>'fecha')::date,
+         coalesce((x->>'es_gasto')::boolean, false)
     from jsonb_array_elements(coalesce(p_copia->'operaciones_deuda', '[]')) x
     join deudas d on d.id::text = x->>'deuda_id' and d.hogar_id = v_hogar
   on conflict (id) do nothing;

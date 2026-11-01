@@ -236,31 +236,34 @@ class PantallaDetalleDeuda extends StatelessWidget {
     final pago = textoProximoPago(deuda);
 
     // Historial: pagos, cargos y gastos pagados con esta tarjeta.
-    final historial = <({DateTime fecha, String titulo, String quien, double monto, VoidCallback? alPulsar})>[
-      for (final o in datos.operacionesDeuda.where((o) => o.deudaId == deuda.id))
-        (
-          fecha: o.fecha,
-          titulo: o.nota.isNotEmpty ? o.nota : (o.esPago ? 'Pago' : 'Cargo'),
-          quien: datos.miembro(o.usuarioId).nombre,
-          monto: o.esPago ? -o.monto : o.monto,
-          alPulsar: () => _borrarOperacion(context, o),
-        ),
-      for (final m in datos.movimientos.where((m) => m.deudaId == deuda.id && m.tipo == TipoMovimiento.gasto))
-        (
-          fecha: m.fecha,
-          titulo: m.nota.isNotEmpty ? m.nota : categoriaPorClave(m.categoria).nombre,
-          quien: datos.miembro(m.usuarioId).nombre,
-          monto: m.monto,
-          alPulsar: m.usuarioId == miUsuarioId
-              ? () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => PantallaEditarMovimiento(datos: datos, movimiento: m),
-                    fullscreenDialog: true,
-                  ),
-                )
-              : null,
-        ),
-    ]..sort((a, b) => b.fecha.compareTo(a.fecha));
+    final historial =
+        <({DateTime fecha, String titulo, String clase, String quien, double monto, VoidCallback? alPulsar})>[
+          for (final o in datos.operacionesDeuda.where((o) => o.deudaId == deuda.id))
+            (
+              fecha: o.fecha,
+              titulo: o.nota.isNotEmpty ? o.nota : (o.esPago ? 'Pago' : 'Cargo'),
+              clase: o.esPago ? 'Pago' : 'Cargo',
+              quien: datos.miembro(o.usuarioId).nombre,
+              monto: o.esPago ? -o.monto : o.monto,
+              alPulsar: () => _opcionesOperacion(context, o),
+            ),
+          for (final m in datos.movimientos.where((m) => m.deudaId == deuda.id && m.tipo == TipoMovimiento.gasto))
+            (
+              fecha: m.fecha,
+              titulo: m.nota.isNotEmpty ? m.nota : categoriaPorClave(m.categoria).nombre,
+              clase: 'Compra',
+              quien: datos.miembro(m.usuarioId).nombre,
+              monto: m.monto,
+              alPulsar: m.usuarioId == miUsuarioId
+                  ? () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => PantallaEditarMovimiento(datos: datos, movimiento: m),
+                        fullscreenDialog: true,
+                      ),
+                    )
+                  : null,
+            ),
+        ]..sort((a, b) => b.fecha.compareTo(a.fecha));
 
     return Scaffold(
       appBar: AppBar(
@@ -272,94 +275,132 @@ class PantallaDetalleDeuda extends StatelessWidget {
           ),
         ],
       ),
-      body: ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(16),
-        children: [
-          Card(
-            color: c.errorContainer,
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '${nombresTipoDeuda[deuda.tipo]} de ${datos.miembro(deuda.usuarioId).nombre}',
-                    style: t.titleSmall?.copyWith(color: c.onErrorContainer),
-                  ),
-                  FittedBox(
-                    child: Text(
-                      dinero(saldo, moneda),
-                      style: t.displaySmall?.copyWith(fontWeight: FontWeight.bold, color: c.onErrorContainer),
-                    ),
-                  ),
-                  if (deuda.limite != null)
+      body: RefreshIndicator(
+        onRefresh: datos.refrescar,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(16),
+          children: [
+            Card(
+              color: c.errorContainer,
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Text(
-                      'Límite ${dinero(deuda.limite!, moneda)} · disponible ${dinero(deuda.limite! - saldo, moneda)}',
-                      style: TextStyle(color: c.onErrorContainer),
+                      '${nombresTipoDeuda[deuda.tipo]} de ${datos.miembro(deuda.usuarioId).nombre}',
+                      style: t.titleSmall?.copyWith(color: c.onErrorContainer),
                     ),
-                  if (pago != null) Text(pago, style: TextStyle(color: c.onErrorContainer)),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: FilledButton.icon(
-                  icon: const Icon(Icons.payments),
-                  label: const Text('Anotar pago'),
-                  onPressed: () => _anotar(context, deuda, esPago: true),
+                    FittedBox(
+                      child: Text(
+                        dinero(saldo, moneda),
+                        style: t.displaySmall?.copyWith(fontWeight: FontWeight.bold, color: c.onErrorContainer),
+                      ),
+                    ),
+                    if (deuda.limite != null)
+                      Text(
+                        'Límite ${dinero(deuda.limite!, moneda)} · disponible ${dinero(deuda.limite! - saldo, moneda)}',
+                        style: TextStyle(color: c.onErrorContainer),
+                      ),
+                    if (pago != null) Text(pago, style: TextStyle(color: c.onErrorContainer)),
+                  ],
                 ),
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: OutlinedButton.icon(
-                  icon: const Icon(Icons.add_card),
-                  label: const Text('Anotar cargo'),
-                  onPressed: () => _anotar(context, deuda, esPago: false),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton.icon(
+                    icon: const Icon(Icons.payments),
+                    label: const Text('Anotar pago'),
+                    onPressed: () => _anotar(context, deuda, esPago: true),
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            deuda.tipo == TipoDeuda.tarjeta
-                ? 'Las compras se suman solas si al anotar el gasto eliges esta tarjeta. '
-                      'Usa "Anotar cargo" para intereses, comisiones o compras que no quieras contar como gasto.'
-                : 'Usa "Anotar cargo" si la deuda aumenta (intereses, nuevo préstamo…).',
-            style: t.bodySmall?.copyWith(color: c.onSurfaceVariant),
-          ),
-          const SizedBox(height: 16),
-          Text('Historial', style: t.titleMedium),
-          if (historial.isEmpty)
-            const Padding(padding: EdgeInsets.all(16), child: Text('Aún no hay pagos ni compras.')),
-          for (final h in historial)
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: Icon(
-                h.monto < 0 ? Icons.south_west : Icons.north_east,
-                color: h.monto < 0 ? verdeIngreso : rojoGasto,
-              ),
-              title: Text(h.titulo),
-              subtitle: Text('${fechaDia(h.fecha)} · ${h.quien}'),
-              trailing: Text(
-                '${h.monto < 0 ? '−' : '+'}${dinero(h.monto.abs(), moneda)}',
-                style: TextStyle(fontWeight: FontWeight.w600, color: h.monto < 0 ? verdeIngreso : rojoGasto),
-              ),
-              onTap: h.alPulsar,
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.add_card),
+                    label: const Text('Sumar a la deuda'),
+                    onPressed: () => _anotar(context, deuda, esPago: false),
+                  ),
+                ),
+              ],
             ),
-          if (deuda.saldoInicial != 0)
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.flag),
-              title: const Text('Lo que se debía al empezar'),
-              trailing: Text(dinero(deuda.saldoInicial, moneda), style: const TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 4),
+            Text(
+              deuda.tipo == TipoDeuda.tarjeta
+                  ? '"Anotar pago" baja lo que se debe. Las compras se suman solas si al anotar el gasto eliges '
+                        'esta tarjeta; "Sumar a la deuda" es para intereses o comisiones.'
+                  : '"Anotar pago" baja lo que se debe. "Sumar a la deuda" es para intereses o si te prestan más.',
+              style: t.bodySmall?.copyWith(color: c.onSurfaceVariant),
             ),
-        ],
+            const SizedBox(height: 16),
+            Text('Historial', style: t.titleMedium),
+            if (historial.isEmpty)
+              const Padding(padding: EdgeInsets.all(16), child: Text('Aún no hay pagos ni compras.')),
+            for (final h in historial)
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(
+                  h.monto < 0 ? Icons.south_west : Icons.north_east,
+                  color: h.monto < 0 ? verdeIngreso : rojoGasto,
+                ),
+                title: Text(h.titulo),
+                subtitle: Text('${h.clase} · ${fechaDia(h.fecha)} · ${h.quien}'),
+                trailing: Text(
+                  '${h.monto < 0 ? '−' : '+'}${dinero(h.monto.abs(), moneda)}',
+                  style: TextStyle(fontWeight: FontWeight.w600, color: h.monto < 0 ? verdeIngreso : rojoGasto),
+                ),
+                onTap: h.alPulsar,
+              ),
+            if (deuda.saldoInicial != 0)
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.flag),
+                title: const Text('Lo que se debía al empezar'),
+                trailing: Text(dinero(deuda.saldoInicial, moneda), style: const TextStyle(fontWeight: FontWeight.w600)),
+              ),
+          ],
+        ),
       ),
     );
+  }
+
+  Future<void> _opcionesOperacion(BuildContext context, OperacionDeuda o) async {
+    final mensajero = ScaffoldMessenger.of(context);
+    final eleccion = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (hoja) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: Icon(o.esPago ? Icons.north_east : Icons.south_west),
+              title: Text(o.esPago ? 'Cambiar a "Sumar a la deuda"' : 'Cambiar a pago'),
+              subtitle: Text(o.esPago ? 'La deuda subirá en vez de bajar' : 'La deuda bajará en vez de subir'),
+              onTap: () => Navigator.pop(hoja, 'cambiar'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline),
+              title: const Text('Borrar'),
+              onTap: () => Navigator.pop(hoja, 'borrar'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!context.mounted) return;
+    if (eleccion == 'borrar') return _borrarOperacion(context, o);
+    if (eleccion == 'cambiar') {
+      try {
+        await datos.cambiarTipoOperacion(o);
+      } catch (e) {
+        mensajero.showSnackBar(SnackBar(content: Text(mensajeDeError(e))));
+      }
+    }
   }
 
   Future<void> _borrarOperacion(BuildContext context, OperacionDeuda o) async {
@@ -383,6 +424,8 @@ class PantallaDetalleDeuda extends StatelessWidget {
   }
 
   Future<void> _anotar(BuildContext context, Deuda deuda, {required bool esPago}) async {
+    final saldoActual = datos.saldoDeuda(deuda);
+    final moneda = datos.hogar!.moneda;
     final monto = TextEditingController();
     final nota = TextEditingController();
     var fecha = DateTime.now();
@@ -394,14 +437,38 @@ class PantallaDetalleDeuda extends StatelessWidget {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setState) => AlertDialog(
-          title: Text(esPago ? 'Pago a ${deuda.nombre}' : 'Cargo en ${deuda.nombre}'),
+          title: Text(deuda.nombre),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                SegmentedButton<bool>(
+                  segments: const [
+                    ButtonSegment(value: true, label: Text('Pago'), icon: Icon(Icons.south_west)),
+                    ButtonSegment(value: false, label: Text('Sumar'), icon: Icon(Icons.north_east)),
+                  ],
+                  selected: {esPago},
+                  onSelectionChanged: (v) => setState(() {
+                    esPago = v.first;
+                    comoGasto = esPago && deuda.tipo != TipoDeuda.tarjeta;
+                  }),
+                ),
+                const SizedBox(height: 8),
+                Builder(
+                  builder: (context) {
+                    final cantidad = leerMonto(monto.text) ?? 0;
+                    final queda = esPago ? saldoActual - cantidad : saldoActual + cantidad;
+                    return Text(
+                      '${esPago ? 'Baja' : 'Sube'} lo que se debe: '
+                      '${dinero(saldoActual, moneda)} → ${dinero(queda, moneda)}',
+                      style: TextStyle(color: esPago ? verdeIngreso : rojoGasto, fontWeight: FontWeight.w600),
+                    );
+                  },
+                ),
                 TextField(
                   controller: monto,
                   autofocus: true,
+                  onChanged: (_) => setState(() {}),
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   decoration: InputDecoration(labelText: 'Cantidad', prefixText: '${datos.hogar!.moneda} '),
                 ),

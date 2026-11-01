@@ -75,7 +75,18 @@ class DatosHogar extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> _cargarDelServidor() async {
+  /// Tras guardar algo, se vuelve a pedir todo para que los números cambien al momento
+  /// aunque la conexión en vivo no avise (sin reabrir la conexión).
+  Future<void> _actualizarTrasGuardar() async {
+    try {
+      await _cargarDelServidor(reconectar: false);
+    } catch (_) {
+      // Si falla, la conexión en vivo o el siguiente deslizar lo traerán.
+    }
+    notifyListeners();
+  }
+
+  Future<void> _cargarDelServidor({bool reconectar = true}) async {
     final fila = await supabase.from('miembros').select('hogar_id').eq('usuario_id', miUsuarioId).maybeSingle();
     if (fila == null) {
       hogar = null;
@@ -99,7 +110,7 @@ class DatosHogar extends ChangeNotifier {
     _aplicarPlanes(filas(3));
     _aplicarDeudas(filas(4));
     _aplicarOperaciones(filas(5));
-    await _escuchar(id);
+    if (reconectar || _suscripciones.isEmpty) await _escuchar(id);
   }
 
   void _aplicarMiembros(List<Map<String, dynamic>> filas) {
@@ -202,6 +213,7 @@ class DatosHogar extends ChangeNotifier {
 
   Future<void> cambiarMiNombre(String nombre) async {
     await supabase.from('miembros').update({'nombre': nombre}).eq('usuario_id', miUsuarioId);
+    await _actualizarTrasGuardar();
   }
 
   Future<void> guardarMovimiento({
@@ -226,10 +238,12 @@ class DatosHogar extends ChangeNotifier {
     } else {
       await supabase.from('movimientos').update(datos).eq('id', id);
     }
+    await _actualizarTrasGuardar();
   }
 
   Future<void> borrarMovimiento(String id) async {
     await supabase.from('movimientos').delete().eq('id', id);
+    await _actualizarTrasGuardar();
   }
 
   double saldoDeuda(Deuda d) => d.saldo(movimientos, operacionesDeuda);
@@ -261,10 +275,12 @@ class DatosHogar extends ChangeNotifier {
     } else {
       await supabase.from('planes').update(datos).eq('id', id);
     }
+    await _actualizarTrasGuardar();
   }
 
   Future<void> borrarPlan(String id) async {
     await supabase.from('planes').delete().eq('id', id);
+    await _actualizarTrasGuardar();
   }
 
   /// Copia al mes [destino] todo lo previsto en el mes anterior.
@@ -283,6 +299,7 @@ class DatosHogar extends ChangeNotifier {
         },
     ];
     if (filas.isNotEmpty) await supabase.from('planes').insert(filas);
+    await _actualizarTrasGuardar();
     return filas.length;
   }
 
@@ -308,10 +325,12 @@ class DatosHogar extends ChangeNotifier {
     } else {
       await supabase.from('deudas').update(datos).eq('id', id);
     }
+    await _actualizarTrasGuardar();
   }
 
   Future<void> borrarDeuda(String id) async {
     await supabase.from('deudas').delete().eq('id', id);
+    await _actualizarTrasGuardar();
   }
 
   /// Anota un pago o un cargo. Si [tambienComoGasto], el pago cuenta además
@@ -332,6 +351,8 @@ class DatosHogar extends ChangeNotifier {
       'monto': monto,
       'nota': nota,
       'fecha': fechaIso(fecha),
+      // Solo se envía cuando hace falta, para no depender de esa columna si aún no existe.
+      if (esPago && tambienComoGasto) 'es_gasto': true,
     });
     if (esPago && tambienComoGasto) {
       await guardarMovimiento(
@@ -342,10 +363,18 @@ class DatosHogar extends ChangeNotifier {
         fecha: fecha,
       );
     }
+    await _actualizarTrasGuardar();
+  }
+
+  /// Corrige un pago anotado como cargo, o al revés.
+  Future<void> cambiarTipoOperacion(OperacionDeuda o) async {
+    await supabase.from('operaciones_deuda').update({'tipo': o.esPago ? 'cargo' : 'pago'}).eq('id', o.id);
+    await _actualizarTrasGuardar();
   }
 
   Future<void> borrarOperacionDeuda(String id) async {
     await supabase.from('operaciones_deuda').delete().eq('id', id);
+    await _actualizarTrasGuardar();
   }
 
   @override

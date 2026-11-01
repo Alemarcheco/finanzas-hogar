@@ -198,6 +198,74 @@ void main() {
     expect(() => leerCopia(utf8.encode('no es json')), throwsFormatException);
   });
 
+  test('disponible en débito y en crédito', () {
+    final mes = DateTime(2026, 11);
+    const plata = Deuda(
+      id: 'p',
+      usuarioId: 'l',
+      nombre: 'Plata',
+      tipo: TipoDeuda.tarjeta,
+      limite: 10000,
+      saldoInicial: 5000,
+      diaPago: null,
+    );
+    const coche = Deuda(
+      id: 'c',
+      usuarioId: 'a',
+      nombre: 'Coche',
+      tipo: TipoDeuda.prestamo,
+      limite: null,
+      saldoInicial: 20000,
+      diaPago: 5,
+    );
+    final movs = [
+      mov('a', TipoMovimiento.ingreso, 'salario', 20000, DateTime(2026, 11, 1)),
+      mov('a', TipoMovimiento.gasto, 'renta', 7000, DateTime(2026, 11, 2)),
+      Movimiento(
+        id: 't',
+        usuarioId: 'l',
+        tipo: TipoMovimiento.gasto,
+        categoria: 'comida',
+        monto: 1000,
+        nota: '',
+        fecha: DateTime(2026, 11, 3),
+        deudaId: 'p',
+      ),
+      mov('a', TipoMovimiento.ahorro, 'guardar', 2000, DateTime(2026, 11, 4)),
+      // pago del préstamo anotado también como gasto
+      mov('a', TipoMovimiento.gasto, 'deudas', 1500, DateTime(2026, 11, 5)),
+    ];
+    final ops = [
+      OperacionDeuda(
+        id: '1',
+        deudaId: 'p',
+        usuarioId: 'l',
+        esPago: true,
+        monto: 3000,
+        nota: 'Pago de TC',
+        fecha: DateTime(2026, 11, 1),
+      ),
+      OperacionDeuda(
+        id: '2',
+        deudaId: 'c',
+        usuarioId: 'a',
+        esPago: true,
+        monto: 1500,
+        nota: '',
+        fecha: DateTime(2026, 11, 5),
+        esGasto: true,
+      ),
+    ];
+    expect(plata.saldo(movs, ops), 3000); // 5000 + 1000 de compra − 3000 de pago
+    final d = Disponible.calcular(movs, ops, [plata, coche], mes);
+    // 20000 − 7000 − 2000 (ahorro) − 1500 (gasto préstamo) − 3000 (pago tarjeta); la compra con tarjeta no sale del débito
+    expect(d.debito, 6500);
+    expect(d.credito, 7000);
+    expect(d.limiteTotal, 10000);
+    expect(d.gastosConTarjeta, 1000);
+    expect(d.pagosDeudas, 4500);
+  });
+
   testWidgets('la pantalla de entrada se muestra', (tester) async {
     await tester.pumpWidget(const MaterialApp(home: PantallaLogin()));
     expect(find.text('Finanzas del Hogar'), findsOneWidget);

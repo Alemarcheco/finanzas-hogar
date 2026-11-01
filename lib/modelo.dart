@@ -362,6 +362,10 @@ class OperacionDeuda {
   final String nota;
   final DateTime fecha;
 
+  /// El pago se anotó además como gasto del mes (préstamos), así que el
+  /// dinero que salió ya está contado en los gastos.
+  final bool esGasto;
+
   const OperacionDeuda({
     required this.id,
     required this.deudaId,
@@ -370,6 +374,7 @@ class OperacionDeuda {
     required this.monto,
     required this.nota,
     required this.fecha,
+    this.esGasto = false,
   });
 
   factory OperacionDeuda.desdeMapa(Map<String, dynamic> m) => OperacionDeuda(
@@ -380,5 +385,75 @@ class OperacionDeuda {
     monto: (m['monto'] as num).toDouble(),
     nota: (m['nota'] as String?) ?? '',
     fecha: DateTime.parse(m['fecha'] as String),
+    esGasto: m['es_gasto'] as bool? ?? false,
   );
+
+  bool esDelMes(DateTime mes) => fecha.year == mes.year && fecha.month == mes.month;
+}
+
+/// Dinero disponible separado en débito (efectivo/cuenta) y crédito (tarjetas).
+class Disponible {
+  /// Ingresos − gastos pagados en efectivo o débito − ahorro − pagos a tarjetas y deudas.
+  final double debito;
+
+  /// Lo que queda por usar en las tarjetas con límite (hoy).
+  final double credito;
+
+  /// Límite total de esas tarjetas; 0 si ninguna tiene límite.
+  final double limiteTotal;
+
+  /// Gastos del mes pagados con tarjeta.
+  final double gastosConTarjeta;
+
+  /// Pagos a tarjetas y deudas hechos este mes.
+  final double pagosDeudas;
+
+  const Disponible({
+    required this.debito,
+    required this.credito,
+    required this.limiteTotal,
+    required this.gastosConTarjeta,
+    required this.pagosDeudas,
+  });
+
+  factory Disponible.calcular(
+    Iterable<Movimiento> movimientos,
+    Iterable<OperacionDeuda> operaciones,
+    Iterable<Deuda> deudas,
+    DateTime mes,
+  ) {
+    var debito = 0.0, gastosConTarjeta = 0.0, pagos = 0.0;
+    for (final m in movimientos.where((m) => m.esDelMes(mes))) {
+      switch (m.tipo) {
+        case TipoMovimiento.ingreso:
+          debito += m.monto;
+        case TipoMovimiento.ahorro:
+          debito -= m.monto;
+        case TipoMovimiento.gasto:
+          if (m.deudaId != null) {
+            gastosConTarjeta += m.monto;
+          } else {
+            debito -= m.monto;
+          }
+      }
+    }
+    for (final o in operaciones.where((o) => o.esPago && o.esDelMes(mes))) {
+      pagos += o.monto;
+      if (!o.esGasto) debito -= o.monto;
+    }
+    var credito = 0.0, limiteTotal = 0.0;
+    for (final d in deudas) {
+      final limite = d.limite;
+      if (d.tipo != TipoDeuda.tarjeta || limite == null || limite <= 0) continue;
+      limiteTotal += limite;
+      credito += limite - d.saldo(movimientos, operaciones);
+    }
+    return Disponible(
+      debito: debito,
+      credito: credito,
+      limiteTotal: limiteTotal,
+      gastosConTarjeta: gastosConTarjeta,
+      pagosDeudas: pagos,
+    );
+  }
 }
