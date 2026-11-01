@@ -19,6 +19,13 @@ String mensajeDeError(Object error) {
     final m = error.message.toLowerCase();
     if (m.contains('invalid login')) return 'Correo o contraseña incorrectos.';
     if (m.contains('already registered')) return 'Ya existe una cuenta con ese correo. Usa "Entrar".';
+    if (m.contains('expired') || m.contains('invalid') && m.contains('token')) {
+      return 'El código no es correcto o ya caducó. Pide otro.';
+    }
+    if (m.contains('rate limit') || m.contains('security purposes')) {
+      return 'Has pedido muchos códigos seguidos. Espera unos minutos y vuelve a intentarlo.';
+    }
+    if (m.contains('different from the old')) return 'La contraseña nueva debe ser distinta de la anterior.';
     if (m.contains('password')) return 'La contraseña debe tener al menos 6 caracteres.';
     if (m.contains('email not confirmed')) return 'Falta confirmar el correo (revisa tu bandeja de entrada).';
     return error.message;

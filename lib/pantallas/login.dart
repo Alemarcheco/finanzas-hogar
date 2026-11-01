@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../datos.dart';
+import 'recuperar_clave.dart';
 
 class PantallaLogin extends StatefulWidget {
   const PantallaLogin({super.key});
@@ -114,6 +115,19 @@ class _PantallaLoginState extends State<PantallaLogin> {
                         ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
                         : Text(_registro ? 'Crear cuenta' : 'Entrar'),
                   ),
+                  if (!_registro) ...[
+                    const SizedBox(height: 8),
+                    TextButton(
+                      onPressed: _ocupado
+                          ? null
+                          : () => Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => PantallaRecuperarClave(correoInicial: _correo.text.trim()),
+                              ),
+                            ),
+                      child: const Text('¿Olvidaste tu contraseña?'),
+                    ),
+                  ],
                 ],
               ),
             ),
