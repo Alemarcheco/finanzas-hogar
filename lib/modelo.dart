@@ -393,7 +393,8 @@ class OperacionDeuda {
 
 /// Dinero disponible separado en débito (efectivo/cuenta) y crédito (tarjetas).
 class Disponible {
-  /// Ingresos − gastos pagados en efectivo o débito − ahorro − pagos a tarjetas y deudas.
+  /// Dinero del mes para gastar: ingresos − todos los gastos (también los
+  /// hechos con tarjeta) − lo apartado como ahorro.
   final double debito;
 
   /// Lo que queda por usar en las tarjetas con límite (hoy). Una tarjeta
@@ -431,16 +432,12 @@ class Disponible {
         case TipoMovimiento.ahorro:
           debito -= m.monto;
         case TipoMovimiento.gasto:
-          if (m.deudaId != null) {
-            gastosConTarjeta += m.monto;
-          } else {
-            debito -= m.monto;
-          }
+          debito -= m.monto;
+          if (m.deudaId != null) gastosConTarjeta += m.monto;
       }
     }
     for (final o in operaciones.where((o) => o.esPago && o.esDelMes(mes))) {
       pagos += o.monto;
-      if (!o.esGasto) debito -= o.monto;
     }
     var credito = 0.0, limiteTotal = 0.0;
     for (final d in deudas) {

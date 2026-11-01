@@ -258,8 +258,8 @@ void main() {
     ];
     expect(plata.saldo(movs, ops), 3000); // 5000 + 1000 de compra − 3000 de pago
     final d = Disponible.calcular(movs, ops, [plata, coche], mes);
-    // 20000 − 7000 − 2000 (ahorro) − 1500 (gasto préstamo) − 3000 (pago tarjeta); la compra con tarjeta no sale del débito
-    expect(d.debito, 6500);
+    // 20000 − 7000 − 1000 (compra con tarjeta) − 2000 (ahorro) − 1500 (gasto préstamo)
+    expect(d.debito, 8500);
     expect(d.credito, 7000);
     expect(d.limiteTotal, 10000);
     expect(d.gastosConTarjeta, 1000);
