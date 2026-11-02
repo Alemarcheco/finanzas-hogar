@@ -69,6 +69,7 @@ Map<String, dynamic> copiaDelHogar(DatosHogar d, DateTime ahora) => {
         'nota': o.nota,
         'fecha': fechaIso(o.fecha),
         'es_gasto': o.esGasto,
+        'cuenta': o.cuenta,
       },
   ],
 };

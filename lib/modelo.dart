@@ -371,6 +371,9 @@ class OperacionDeuda {
   /// dinero que salió ya está contado en los gastos.
   final bool esGasto;
 
+  /// Cuenta de débito de donde salió el dinero del pago.
+  final String? cuenta;
+
   const OperacionDeuda({
     required this.id,
     required this.deudaId,
@@ -380,6 +383,7 @@ class OperacionDeuda {
     required this.nota,
     required this.fecha,
     this.esGasto = false,
+    this.cuenta,
   });
 
   factory OperacionDeuda.desdeMapa(Map<String, dynamic> m) => OperacionDeuda(
@@ -391,9 +395,33 @@ class OperacionDeuda {
     nota: (m['nota'] as String?) ?? '',
     fecha: DateTime.parse(m['fecha'] as String),
     esGasto: m['es_gasto'] as bool? ?? false,
+    cuenta: (m['cuenta'] as String?)?.trim().isEmpty ?? true ? null : (m['cuenta'] as String).trim(),
   );
 
   bool esDelMes(DateTime mes) => fecha.year == mes.year && fecha.month == mes.month;
+}
+
+/// Saldo de cada cuenta de débito: lo que entró menos lo que salió de ella
+/// (gastos pagados con esa cuenta y pagos a tarjetas o deudas).
+Map<String, double> saldosDeCuentas(Iterable<Movimiento> movimientos, Iterable<OperacionDeuda> operaciones) {
+  final saldos = <String, double>{};
+  for (final m in movimientos) {
+    final cuenta = m.cuenta;
+    if (cuenta == null || m.deudaId != null) continue;
+    final signo = switch (m.tipo) {
+      TipoMovimiento.ingreso => 1,
+      TipoMovimiento.gasto => -1,
+      TipoMovimiento.ahorro => -1,
+    };
+    saldos[cuenta] = (saldos[cuenta] ?? 0) + signo * m.monto;
+  }
+  for (final o in operaciones) {
+    final cuenta = o.cuenta;
+    // Si el pago se anotó también como gasto, ese gasto ya lleva la cuenta.
+    if (cuenta == null || !o.esPago || o.esGasto) continue;
+    saldos[cuenta] = (saldos[cuenta] ?? 0) - o.monto;
+  }
+  return saldos;
 }
 
 /// Dinero disponible separado en débito (efectivo/cuenta) y crédito (tarjetas).

@@ -92,6 +92,10 @@ alter table public.movimientos
 alter table public.movimientos
   add column if not exists cuenta text;
 
+-- Cuenta de débito de donde salió el dinero de un pago a tarjeta o deuda
+alter table public.operaciones_deuda
+  add column if not exists cuenta text;
+
 -- Hogar del usuario que hace la consulta ---------------------------
 create or replace function public.mi_hogar()
 returns uuid
@@ -285,11 +289,11 @@ begin
   on conflict (id) do nothing;
   get diagnostics n_planes = row_count;
 
-  insert into operaciones_deuda (id, hogar_id, deuda_id, usuario_id, tipo, monto, nota, fecha, es_gasto)
+  insert into operaciones_deuda (id, hogar_id, deuda_id, usuario_id, tipo, monto, nota, fecha, es_gasto, cuenta)
   select (x->>'id')::uuid, v_hogar, d.id,
          coalesce((v_mapa->>(x->>'usuario_id'))::uuid, auth.uid()),
          x->>'tipo', (x->>'monto')::numeric, coalesce(x->>'nota', ''), (x->>'fecha')::date,
-         coalesce((x->>'es_gasto')::boolean, false)
+         coalesce((x->>'es_gasto')::boolean, false), nullif(x->>'cuenta', '')
     from jsonb_array_elements(coalesce(p_copia->'operaciones_deuda', '[]')) x
     join deudas d on d.id::text = x->>'deuda_id' and d.hogar_id = v_hogar
   on conflict (id) do nothing;

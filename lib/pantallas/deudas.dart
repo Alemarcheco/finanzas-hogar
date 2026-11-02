@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../datos.dart';
 import '../formato.dart';
 import '../modelo.dart';
+import '../widgets/pedir_cuenta.dart';
 import 'editar_movimiento.dart';
 import 'resumen.dart';
 
@@ -242,7 +243,7 @@ class PantallaDetalleDeuda extends StatelessWidget {
             (
               fecha: o.fecha,
               titulo: o.nota.isNotEmpty ? o.nota : (o.esPago ? 'Pago' : 'Cargo'),
-              clase: o.esPago ? 'Pago' : 'Cargo',
+              clase: o.esPago ? (o.cuenta == null ? 'Pago' : 'Pago desde ${o.cuenta}') : 'Cargo',
               quien: datos.miembro(o.usuarioId).nombre,
               monto: o.esPago ? -o.monto : o.monto,
               alPulsar: () => _opcionesOperacion(context, o),
@@ -432,6 +433,14 @@ class PantallaDetalleDeuda extends StatelessWidget {
     // Los pagos de préstamos suelen ser un gasto del mes; el pago de la tarjeta no,
     // porque las compras ya se anotaron como gasto.
     var comoGasto = esPago && deuda.tipo != TipoDeuda.tarjeta;
+    // De dónde sale el dinero del pago: efectivo (null), una cuenta de débito u otra tarjeta.
+    String? cuenta;
+    Deuda? desdeTarjeta;
+    final cuentas = [...datos.cuentas];
+    final otrasTarjetas = [
+      for (final d in datos.deudas)
+        if (d.tipo == TipoDeuda.tarjeta && d.id != deuda.id) d,
+    ];
     final mensajero = ScaffoldMessenger.of(context);
     final ok = await showDialog<bool>(
       context: context,
@@ -491,6 +500,76 @@ class PantallaDetalleDeuda extends StatelessWidget {
                     if (f != null) setState(() => fecha = f);
                   },
                 ),
+                if (esPago) ...[
+                  const SizedBox(height: 12),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text('¿De dónde sale el dinero?', style: Theme.of(context).textTheme.titleSmall),
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      ChoiceChip(
+                        avatar: const Icon(Icons.payments, size: 18),
+                        label: const Text('Efectivo'),
+                        selected: cuenta == null && desdeTarjeta == null,
+                        onSelected: (_) => setState(() {
+                          cuenta = null;
+                          desdeTarjeta = null;
+                        }),
+                      ),
+                      for (final c in cuentas)
+                        ChoiceChip(
+                          avatar: const Icon(Icons.account_balance, size: 18),
+                          label: Text(c),
+                          selected: cuenta == c,
+                          onSelected: (_) => setState(() {
+                            cuenta = c;
+                            desdeTarjeta = null;
+                          }),
+                        ),
+                      for (final t in otrasTarjetas)
+                        ChoiceChip(
+                          avatar: const Icon(Icons.credit_card, size: 18),
+                          label: Text(t.nombre),
+                          selected: desdeTarjeta?.id == t.id,
+                          onSelected: (_) => setState(() {
+                            desdeTarjeta = t;
+                            cuenta = null;
+                          }),
+                        ),
+                      ActionChip(
+                        avatar: const Icon(Icons.add, size: 18),
+                        label: const Text('Nueva cuenta de débito'),
+                        onPressed: () async {
+                          final nueva = await pedirNombreCuenta(context);
+                          if (nueva != null) {
+                            setState(() {
+                              if (!cuentas.contains(nueva)) cuentas.add(nueva);
+                              cuenta = nueva;
+                              desdeTarjeta = null;
+                            });
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                  if (cuenta != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Text('Se descontará de $cuenta.', style: Theme.of(context).textTheme.bodySmall),
+                    ),
+                  if (desdeTarjeta != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Text(
+                        'Se sumará a lo que se debe de ${desdeTarjeta!.nombre}.',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ),
+                ],
                 if (esPago)
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
@@ -527,6 +606,8 @@ class PantallaDetalleDeuda extends StatelessWidget {
         nota: nota.text.trim(),
         fecha: fecha,
         tambienComoGasto: comoGasto,
+        cuenta: esPago ? cuenta : null,
+        desdeTarjeta: esPago ? desdeTarjeta : null,
       );
     } catch (e) {
       mensajero.showSnackBar(SnackBar(content: Text(mensajeDeError(e))));

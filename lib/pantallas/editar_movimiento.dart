@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../datos.dart';
 import '../formato.dart';
 import '../modelo.dart';
+import '../widgets/pedir_cuenta.dart';
 import '../widgets/selector_categoria.dart';
 import 'movimientos.dart';
 
@@ -57,25 +58,8 @@ class _PantallaEditarMovimientoState extends State<PantallaEditarMovimiento> {
   ];
 
   Future<void> _nuevaCuenta() async {
-    final nombre = TextEditingController();
-    final elegido = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Nueva cuenta o tarjeta de débito'),
-        content: TextField(
-          controller: nombre,
-          autofocus: true,
-          textCapitalization: TextCapitalization.words,
-          decoration: const InputDecoration(labelText: 'Nombre', hintText: 'Ej.: BBVA débito, Nómina Santander'),
-          onSubmitted: (v) => Navigator.of(context).pop(v.trim()),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancelar')),
-          FilledButton(onPressed: () => Navigator.of(context).pop(nombre.text.trim()), child: const Text('Añadir')),
-        ],
-      ),
-    );
-    if (elegido != null && elegido.isNotEmpty) {
+    final elegido = await pedirNombreCuenta(context);
+    if (elegido != null) {
       setState(() {
         _cuenta = elegido;
         _deudaId = null;

@@ -38,6 +38,10 @@ class PestanaResumen extends StatelessWidget {
         const SizedBox(height: 12),
         _TarjetaAhorro(r: r, moneda: moneda),
         const SizedBox(height: 12),
+        if (saldosDeCuentas(datos.movimientos, datos.operacionesDeuda) case final saldos when saldos.isNotEmpty) ...[
+          _TarjetaCuentas(saldos: saldos, moneda: moneda),
+          const SizedBox(height: 12),
+        ],
         _TarjetaPlanYDeudas(datos: datos, mes: mes, irA: irA),
         const SizedBox(height: 12),
         if (!hayDatos)
@@ -48,6 +52,47 @@ class PestanaResumen extends StatelessWidget {
           _TarjetaPersonas(r: r, datos: datos, moneda: moneda),
         ],
       ],
+    );
+  }
+}
+
+/// Cuánto hay en cada cuenta de débito según lo anotado.
+class _TarjetaCuentas extends StatelessWidget {
+  final Map<String, double> saldos;
+  final String moneda;
+
+  const _TarjetaCuentas({required this.saldos, required this.moneda});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context).textTheme;
+    final c = Theme.of(context).colorScheme;
+    final nombres = saldos.keys.toList()..sort();
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Cuentas de débito', style: t.titleMedium),
+            Text(
+              'Lo que entró menos lo que salió de cada una',
+              style: t.bodySmall?.copyWith(color: c.onSurfaceVariant),
+            ),
+            for (final n in nombres)
+              ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.account_balance),
+                title: Text(n),
+                trailing: Text(
+                  dinero(saldos[n]!, moneda),
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15, color: saldos[n]! < 0 ? rojoGasto : null),
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }

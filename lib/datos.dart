@@ -33,7 +33,7 @@ String mensajeDeError(Object error) {
   if (error is PostgrestException) {
     if (error.message.contains('No existe ningún hogar')) return 'No existe ningún hogar con ese código.';
     if (error.message.contains('Ya perteneces')) return 'Ya perteneces a un hogar.';
-    if (error.message.contains("'cuenta' column")) {
+    if ((error.message.contains("'cuenta' column") || error.message.contains('column "cuenta"'))) {
       return 'Falta actualizar la base de datos: vuelve a pegar esquema.sql en Supabase y pulsa Run.';
     }
     return error.message;
@@ -263,6 +263,9 @@ class DatosHogar extends ChangeNotifier {
     for (final m in movimientos) {
       if (m.cuenta case final c?) veces[c] = (veces[c] ?? 0) + 1;
     }
+    for (final o in operacionesDeuda) {
+      if (o.cuenta case final c?) veces[c] = (veces[c] ?? 0) + 1;
+    }
     return veces.keys.toList()..sort((a, b) => veces[b]!.compareTo(veces[a]!));
   }
 
@@ -367,7 +370,10 @@ class DatosHogar extends ChangeNotifier {
     required String nota,
     required DateTime fecha,
     bool tambienComoGasto = false,
+    String? cuenta,
+    Deuda? desdeTarjeta,
   }) async {
+    final deCuenta = esPago && desdeTarjeta == null ? cuenta : null;
     await supabase.from('operaciones_deuda').insert({
       'hogar_id': hogar!.id,
       'deuda_id': deuda.id,
@@ -378,7 +384,20 @@ class DatosHogar extends ChangeNotifier {
       'fecha': fechaIso(fecha),
       // Solo se envía cuando hace falta, para no depender de esa columna si aún no existe.
       if (esPago && tambienComoGasto) 'es_gasto': true,
+      if (deCuenta != null && !(esPago && tambienComoGasto)) 'cuenta': deCuenta,
     });
+    // Pagar con otra tarjeta de crédito: lo pagado se suma a lo que se debe de esa tarjeta.
+    if (esPago && desdeTarjeta != null) {
+      await supabase.from('operaciones_deuda').insert({
+        'hogar_id': hogar!.id,
+        'deuda_id': desdeTarjeta.id,
+        'usuario_id': miUsuarioId,
+        'tipo': 'cargo',
+        'monto': monto,
+        'nota': nota.isEmpty ? 'Pago a ${deuda.nombre}' : nota,
+        'fecha': fechaIso(fecha),
+      });
+    }
     if (esPago && tambienComoGasto) {
       await guardarMovimiento(
         tipo: TipoMovimiento.gasto,
@@ -386,6 +405,7 @@ class DatosHogar extends ChangeNotifier {
         monto: monto,
         nota: nota.isEmpty ? 'Pago ${deuda.nombre}' : nota,
         fecha: fecha,
+        cuenta: deCuenta,
       );
     }
     await _actualizarTrasGuardar();

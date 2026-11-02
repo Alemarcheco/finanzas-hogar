@@ -279,6 +279,44 @@ void main() {
     expect(d2.credito, 7000);
   });
 
+  test('saldo de cada cuenta de débito', () {
+    final movs = [
+      Movimiento(
+        id: '1',
+        usuarioId: 'a',
+        tipo: TipoMovimiento.ingreso,
+        categoria: 'otros',
+        monto: 5000,
+        nota: 'Remesa',
+        fecha: DateTime(2026, 11, 1),
+        cuenta: 'BBVA débito',
+      ),
+      Movimiento(
+        id: '2',
+        usuarioId: 'a',
+        tipo: TipoMovimiento.gasto,
+        categoria: 'comida',
+        monto: 300,
+        nota: '',
+        fecha: DateTime(2026, 11, 2),
+        cuenta: 'BBVA débito',
+      ),
+    ];
+    final ops = [
+      OperacionDeuda(
+        id: 'p',
+        deudaId: 't',
+        usuarioId: 'a',
+        esPago: true,
+        monto: 2000,
+        nota: '',
+        fecha: DateTime(2026, 11, 3),
+        cuenta: 'BBVA débito',
+      ),
+    ];
+    expect(saldosDeCuentas(movs, ops), {'BBVA débito': 2700});
+  });
+
   testWidgets('la pantalla de entrada se muestra', (tester) async {
     await tester.pumpWidget(const MaterialApp(home: PantallaLogin()));
     expect(find.text('Finanzas del Hogar'), findsOneWidget);
