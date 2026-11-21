@@ -38,7 +38,8 @@ class PestanaResumen extends StatelessWidget {
         const SizedBox(height: 12),
         _TarjetaAhorro(r: r, moneda: moneda),
         const SizedBox(height: 12),
-        if (saldosDeCuentas(datos.movimientos, datos.operacionesDeuda) case final saldos when saldos.isNotEmpty) ...[
+        if (saldosDeCuentas(datos.movimientos, datos.operacionesDeuda, hasta: DateTime(mes.year, mes.month + 1, 0))
+            case final saldos when saldos.isNotEmpty) ...[
           _TarjetaCuentas(saldos: saldos, moneda: moneda),
           const SizedBox(height: 12),
         ],
@@ -67,14 +68,15 @@ class _TarjetaCuentas extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = Theme.of(context).textTheme;
     final c = Theme.of(context).colorScheme;
-    final nombres = saldos.keys.toList()..sort();
+    final nombres = saldos.keys.toList()
+      ..sort((a, b) => a == cuentaEfectivo ? 1 : (b == cuentaEfectivo ? -1 : a.compareTo(b)));
     return Card(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Cuentas de débito', style: t.titleMedium),
+            Text('Dónde está el dinero', style: t.titleMedium),
             Text(
               'Lo que entró menos lo que salió de cada una',
               style: t.bodySmall?.copyWith(color: c.onSurfaceVariant),
@@ -83,7 +85,7 @@ class _TarjetaCuentas extends StatelessWidget {
               ListTile(
                 dense: true,
                 contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.account_balance),
+                leading: Icon(n == cuentaEfectivo ? Icons.payments : Icons.account_balance),
                 title: Text(n),
                 trailing: Text(
                   dinero(saldos[n]!, moneda),
@@ -161,18 +163,22 @@ class _TarjetaBalance extends StatelessWidget {
                         children: [
                           Icon(Icons.account_balance_wallet, size: 16, color: c.onPrimaryContainer),
                           const SizedBox(width: 4),
-                          Text('Débito disponible', style: t.titleSmall?.copyWith(color: c.onPrimaryContainer)),
+                          Text('Dinero disponible', style: t.titleSmall?.copyWith(color: c.onPrimaryContainer)),
                         ],
                       ),
                       FittedBox(
                         alignment: Alignment.centerLeft,
                         child: Text(
-                          dinero(disponible.debito, moneda),
+                          dinero(disponible.dinero, moneda),
                           style: t.headlineMedium?.copyWith(
-                            color: disponible.debito < 0 ? rojoGasto : c.onPrimaryContainer,
+                            color: disponible.dinero < 0 ? rojoGasto : c.onPrimaryContainer,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
+                      ),
+                      Text(
+                        'En tus cuentas de débito y efectivo',
+                        style: t.bodySmall?.copyWith(color: c.onPrimaryContainer),
                       ),
                     ],
                   ),
@@ -219,17 +225,14 @@ class _TarjetaBalance extends StatelessWidget {
                 ),
               ],
             ),
-            if (disponible.gastosConTarjeta > 0 || disponible.pagosDeudas > 0) ...[
-              const SizedBox(height: 8),
-              Text(
-                [
-                  if (disponible.gastosConTarjeta > 0)
-                    'Gastado con tarjeta: ${dinero(disponible.gastosConTarjeta, moneda)}',
-                  if (disponible.pagosDeudas > 0) 'Pagos a tarjetas: ${dinero(disponible.pagosDeudas, moneda)}',
-                ].join(' · '),
-                style: t.bodySmall?.copyWith(color: c.onPrimaryContainer),
-              ),
-            ],
+            const SizedBox(height: 8),
+            Text(
+              [
+                'Este mes, ingresos − gastos: ${dinero(disponible.balanceMes, moneda)}',
+                if (disponible.pagosDeudas > 0) 'Pagos a tarjetas: ${dinero(disponible.pagosDeudas, moneda)}',
+              ].join(' · '),
+              style: t.bodySmall?.copyWith(color: c.onPrimaryContainer),
+            ),
             const SizedBox(height: 16),
             Row(
               children: [

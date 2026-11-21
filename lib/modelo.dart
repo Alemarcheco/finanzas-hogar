@@ -401,13 +401,24 @@ class OperacionDeuda {
   bool esDelMes(DateTime mes) => fecha.year == mes.year && fecha.month == mes.month;
 }
 
-/// Saldo de cada cuenta de débito: lo que entró menos lo que salió de ella
-/// (gastos pagados con esa cuenta y pagos a tarjetas o deudas).
-Map<String, double> saldosDeCuentas(Iterable<Movimiento> movimientos, Iterable<OperacionDeuda> operaciones) {
+/// Nombre con el que se muestra el dinero que no está en ninguna cuenta.
+const cuentaEfectivo = 'Efectivo';
+
+/// Saldo de cada cuenta de débito y del efectivo: lo que entró menos lo que
+/// salió (gastos pagados con esa cuenta y pagos a tarjetas o deudas).
+/// Con [hasta] solo cuenta lo anotado hasta ese día (incluido).
+Map<String, double> saldosDeCuentas(
+  Iterable<Movimiento> movimientos,
+  Iterable<OperacionDeuda> operaciones, {
+  DateTime? hasta,
+}) {
+  bool dentro(DateTime f) => hasta == null || !f.isAfter(hasta);
   final saldos = <String, double>{};
   for (final m in movimientos) {
-    final cuenta = m.cuenta;
-    if (cuenta == null || m.deudaId != null) continue;
+    if (m.deudaId != null || !dentro(m.fecha)) continue;
+    // El ahorro sin cuenta se aparta, no sale del efectivo de la casa.
+    if (m.cuenta == null && m.tipo == TipoMovimiento.ahorro) continue;
+    final cuenta = m.cuenta ?? cuentaEfectivo;
     final signo = switch (m.tipo) {
       TipoMovimiento.ingreso => 1,
       TipoMovimiento.gasto => -1,
@@ -418,7 +429,7 @@ Map<String, double> saldosDeCuentas(Iterable<Movimiento> movimientos, Iterable<O
   for (final o in operaciones) {
     final cuenta = o.cuenta;
     // Si el pago se anotó también como gasto, ese gasto ya lleva la cuenta.
-    if (cuenta == null || !o.esPago || o.esGasto) continue;
+    if (cuenta == null || !o.esPago || o.esGasto || !dentro(o.fecha)) continue;
     saldos[cuenta] = (saldos[cuenta] ?? 0) - o.monto;
   }
   return saldos;
@@ -426,6 +437,13 @@ Map<String, double> saldosDeCuentas(Iterable<Movimiento> movimientos, Iterable<O
 
 /// Dinero disponible separado en débito (efectivo/cuenta) y crédito (tarjetas).
 class Disponible {
+  /// Dinero que hay de verdad al final del mes: suma de las cuentas de débito
+  /// y el efectivo (todo lo anotado hasta ese mes, no solo el mes).
+  final double dinero;
+
+  /// Ingresos − gastos del mes (todos los gastos, también con tarjeta).
+  final double balanceMes;
+
   /// Dinero del mes para gastar: ingresos − todos los gastos (también los
   /// hechos con tarjeta) − lo apartado como ahorro.
   final double debito;
@@ -444,6 +462,8 @@ class Disponible {
   final double pagosDeudas;
 
   const Disponible({
+    required this.dinero,
+    required this.balanceMes,
     required this.debito,
     required this.credito,
     required this.limiteTotal,
@@ -480,7 +500,12 @@ class Disponible {
       final libre = limite - d.saldo(movimientos, operaciones);
       if (libre > 0) credito += libre;
     }
+    final finDeMes = DateTime(mes.year, mes.month + 1, 0);
+    final saldos = saldosDeCuentas(movimientos, operaciones, hasta: finDeMes);
+    final r = Resumen.calcular(movimientos, mes);
     return Disponible(
+      dinero: saldos.values.fold(0.0, (a, b) => a + b),
+      balanceMes: r.ingresos - r.gastos,
       debito: debito,
       credito: credito,
       limiteTotal: limiteTotal,
