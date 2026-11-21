@@ -315,6 +315,35 @@ void main() {
       ),
     ];
     expect(saldosDeCuentas(movs, ops), {'BBVA débito': 2700});
+
+    // Pago en efectivo: sale del efectivo. Pago con otra tarjeta: no sale de ninguna cuenta.
+    final fecha = DateTime(2026, 11, 4);
+    final mas = [
+      ...ops,
+      OperacionDeuda(id: 'e', deudaId: 't', usuarioId: 'a', esPago: true, monto: 100, nota: '', fecha: fecha),
+      OperacionDeuda(
+        id: 'x',
+        deudaId: 't',
+        usuarioId: 'a',
+        esPago: true,
+        monto: 50,
+        nota: '',
+        fecha: fecha,
+        cuenta: marcaPagoConTarjeta,
+      ),
+      // pago antiguo con otra tarjeta: sin cuenta, pero con su cargo gemelo
+      OperacionDeuda(id: 'v', deudaId: 't', usuarioId: 'a', esPago: true, monto: 30, nota: '', fecha: fecha),
+      OperacionDeuda(
+        id: 'w',
+        deudaId: 'otra',
+        usuarioId: 'a',
+        esPago: false,
+        monto: 30,
+        nota: 'Pago a X',
+        fecha: fecha,
+      ),
+    ];
+    expect(saldosDeCuentas(movs, mas), {'BBVA débito': 2700, cuentaEfectivo: -100});
   });
 
   testWidgets('la pantalla de entrada se muestra', (tester) async {

@@ -264,7 +264,7 @@ class DatosHogar extends ChangeNotifier {
       if (m.cuenta case final c?) veces[c] = (veces[c] ?? 0) + 1;
     }
     for (final o in operacionesDeuda) {
-      if (o.cuenta case final c?) veces[c] = (veces[c] ?? 0) + 1;
+      if (o.cuenta case final c? when c != marcaPagoConTarjeta) veces[c] = (veces[c] ?? 0) + 1;
     }
     return veces.keys.toList()..sort((a, b) => veces[b]!.compareTo(veces[a]!));
   }
@@ -385,6 +385,7 @@ class DatosHogar extends ChangeNotifier {
       // Solo se envía cuando hace falta, para no depender de esa columna si aún no existe.
       if (esPago && tambienComoGasto) 'es_gasto': true,
       if (deCuenta != null && !(esPago && tambienComoGasto)) 'cuenta': deCuenta,
+      if (esPago && desdeTarjeta != null) 'cuenta': marcaPagoConTarjeta,
     });
     // Pagar con otra tarjeta de crédito: lo pagado se suma a lo que se debe de esa tarjeta.
     if (esPago && desdeTarjeta != null) {

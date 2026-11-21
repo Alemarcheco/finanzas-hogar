@@ -244,7 +244,13 @@ class PantallaDetalleDeuda extends StatelessWidget {
             (
               fecha: o.fecha,
               titulo: o.nota.isNotEmpty ? o.nota : (o.esPago ? 'Pago' : 'Cargo'),
-              clase: o.esPago ? (o.cuenta == null ? 'Pago' : 'Pago desde ${o.cuenta}') : 'Cargo',
+              clase: o.esPago
+                  ? switch (o.cuenta) {
+                      null => 'Pago',
+                      marcaPagoConTarjeta => 'Pago con otra tarjeta',
+                      final c => 'Pago desde $c',
+                    }
+                  : 'Cargo',
               quien: datos.miembro(o.usuarioId).nombre,
               monto: o.esPago ? -o.monto : o.monto,
               alPulsar: () => _opcionesOperacion(context, o),

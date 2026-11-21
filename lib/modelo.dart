@@ -415,6 +415,9 @@ class OperacionDeuda {
 /// Nombre con el que se muestra el dinero que no está en ninguna cuenta.
 const cuentaEfectivo = 'Efectivo';
 
+/// Valor de operaciones_deuda.cuenta cuando el pago se hizo con otra tarjeta de crédito.
+const marcaPagoConTarjeta = '@tarjeta';
+
 /// Saldo de cada cuenta de débito y del efectivo: lo que entró menos lo que
 /// salió (gastos pagados con esa cuenta y pagos a tarjetas o deudas).
 /// Con [hasta] solo cuenta lo anotado hasta ese día (incluido).
@@ -437,10 +440,19 @@ Map<String, double> saldosDeCuentas(
     };
     saldos[cuenta] = (saldos[cuenta] ?? 0) + signo * m.monto;
   }
+  final cargos = [
+    for (final o in operaciones)
+      if (!o.esPago && o.nota.startsWith('Pago a ')) o,
+  ];
   for (final o in operaciones) {
-    final cuenta = o.cuenta;
     // Si el pago se anotó también como gasto, ese gasto ya lleva la cuenta.
-    if (cuenta == null || !o.esPago || o.esGasto || !dentro(o.fecha)) continue;
+    if (!o.esPago || o.esGasto || o.esAjuste || !dentro(o.fecha)) continue;
+    if (o.cuenta == marcaPagoConTarjeta) continue;
+    // Pagos antiguos hechos con otra tarjeta: tienen su cargo gemelo en esa tarjeta.
+    if (o.cuenta == null && cargos.any((c) => c.deudaId != o.deudaId && c.monto == o.monto && c.fecha == o.fecha)) {
+      continue;
+    }
+    final cuenta = o.cuenta ?? cuentaEfectivo;
     saldos[cuenta] = (saldos[cuenta] ?? 0) - o.monto;
   }
   return saldos;
