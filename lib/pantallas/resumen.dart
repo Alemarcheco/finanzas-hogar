@@ -4,6 +4,8 @@ import '../datos.dart';
 import '../formato.dart';
 import '../modelo.dart';
 import '../widgets/grafico_dona.dart';
+import '../widgets/pedir_cuenta.dart';
+import '../widgets/pedir_saldo.dart';
 
 const verdeIngreso = Color(0xFF2E7D32);
 const rojoGasto = Color(0xFFC62828);
@@ -40,7 +42,7 @@ class PestanaResumen extends StatelessWidget {
         const SizedBox(height: 12),
         if (saldosDeCuentas(datos.movimientos, datos.operacionesDeuda, hasta: DateTime(mes.year, mes.month + 1, 0))
             case final saldos when saldos.isNotEmpty) ...[
-          _TarjetaCuentas(saldos: saldos, moneda: moneda),
+          _TarjetaCuentas(saldos: saldos, moneda: moneda, datos: datos),
           const SizedBox(height: 12),
         ],
         _TarjetaPlanYDeudas(datos: datos, mes: mes, irA: irA),
@@ -62,7 +64,33 @@ class _TarjetaCuentas extends StatelessWidget {
   final Map<String, double> saldos;
   final String moneda;
 
-  const _TarjetaCuentas({required this.saldos, required this.moneda});
+  final DatosHogar datos;
+
+  const _TarjetaCuentas({required this.saldos, required this.moneda, required this.datos});
+
+  Future<void> _ajustar(BuildContext context, String nombre, double saldoApp) async {
+    final mensajero = ScaffoldMessenger.of(context);
+    final real = await pedirSaldoReal(
+      context,
+      titulo: nombre,
+      pregunta: '¿Cuánto hay de verdad?',
+      saldoApp: saldoApp,
+      moneda: moneda,
+    );
+    if (real == null) return;
+    try {
+      await datos.ajustarCuenta(nombre, saldoApp: saldoApp, saldoReal: real);
+      mensajero.showSnackBar(SnackBar(content: Text('$nombre ajustada a ${dinero(real, moneda)}')));
+    } catch (e) {
+      mensajero.showSnackBar(SnackBar(content: Text(mensajeDeError(e))));
+    }
+  }
+
+  Future<void> _nueva(BuildContext context) async {
+    final nombre = await pedirNombreCuenta(context);
+    if (nombre == null || !context.mounted) return;
+    await _ajustar(context, nombre, saldos[nombre] ?? 0);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -78,13 +106,14 @@ class _TarjetaCuentas extends StatelessWidget {
           children: [
             Text('Dónde está el dinero', style: t.titleMedium),
             Text(
-              'Lo que entró menos lo que salió de cada una',
+              'Toca una cuenta para igualarla con lo que dice el banco',
               style: t.bodySmall?.copyWith(color: c.onSurfaceVariant),
             ),
             for (final n in nombres)
               ListTile(
                 dense: true,
                 contentPadding: EdgeInsets.zero,
+                onTap: () => _ajustar(context, n, saldos[n]!),
                 leading: Icon(n == cuentaEfectivo ? Icons.payments : Icons.account_balance),
                 title: Text(n),
                 trailing: Text(
@@ -92,6 +121,14 @@ class _TarjetaCuentas extends StatelessWidget {
                   style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15, color: saldos[n]! < 0 ? rojoGasto : null),
                 ),
               ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                icon: const Icon(Icons.add),
+                label: const Text('Añadir cuenta con su saldo'),
+                onPressed: () => _nueva(context),
+              ),
+            ),
           ],
         ),
       ),

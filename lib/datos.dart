@@ -411,6 +411,37 @@ class DatosHogar extends ChangeNotifier {
     await _actualizarTrasGuardar();
   }
 
+  /// Iguala una cuenta de débito (o el efectivo) con lo que dice el banco,
+  /// anotando la diferencia como ajuste (no cuenta como ingreso ni gasto).
+  Future<void> ajustarCuenta(String nombre, {required double saldoApp, required double saldoReal}) async {
+    final diferencia = double.parse((saldoReal - saldoApp).toStringAsFixed(2));
+    if (diferencia == 0) return;
+    await guardarMovimiento(
+      tipo: diferencia > 0 ? TipoMovimiento.ingreso : TipoMovimiento.gasto,
+      categoria: categoriaAjuste.clave,
+      monto: diferencia.abs(),
+      nota: notaAjuste,
+      fecha: DateTime.now(),
+      cuenta: nombre == cuentaEfectivo ? null : nombre,
+    );
+  }
+
+  /// Iguala lo que se debe de una tarjeta o deuda con lo que dice el banco.
+  Future<void> ajustarDeuda(Deuda deuda, double saldoReal) async {
+    final diferencia = double.parse((saldoReal - saldoDeuda(deuda)).toStringAsFixed(2));
+    if (diferencia == 0) return;
+    await supabase.from('operaciones_deuda').insert({
+      'hogar_id': hogar!.id,
+      'deuda_id': deuda.id,
+      'usuario_id': miUsuarioId,
+      'tipo': diferencia > 0 ? 'cargo' : 'pago',
+      'monto': diferencia.abs(),
+      'nota': notaAjuste,
+      'fecha': fechaIso(DateTime.now()),
+    });
+    await _actualizarTrasGuardar();
+  }
+
   /// Corrige un pago anotado como cargo, o al revés.
   Future<void> cambiarTipoOperacion(OperacionDeuda o) async {
     await supabase.from('operaciones_deuda').update({'tipo': o.esPago ? 'cargo' : 'pago'}).eq('id', o.id);

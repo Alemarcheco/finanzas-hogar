@@ -51,8 +51,15 @@ List<Categoria> categoriasDe(TipoMovimiento tipo) => switch (tipo) {
   TipoMovimiento.ahorro => categoriasAhorro,
 };
 
+/// Categoría de los ajustes de saldo: igualan una cuenta con lo que dice el
+/// banco y no cuentan como ingreso ni gasto del mes.
+const categoriaAjuste = Categoria('ajuste', 'Ajuste de saldo', Icons.tune, Color(0xFF546E7A));
+
+/// Nota con la que se guardan los ajustes de saldo de tarjetas y deudas.
+const notaAjuste = 'Ajuste de saldo';
+
 Categoria categoriaPorClave(String clave) {
-  for (final c in [...categoriasGasto, ...categoriasIngreso, ...categoriasAhorro]) {
+  for (final c in [...categoriasGasto, ...categoriasIngreso, ...categoriasAhorro, categoriaAjuste]) {
     if (c.clave == clave) return c;
   }
   return const Categoria('otros', 'Otros', Icons.more_horiz, Color(0xFF757575));
@@ -133,6 +140,8 @@ class Movimiento {
   );
 
   bool esDelMes(DateTime mes) => fecha.year == mes.year && fecha.month == mes.month;
+
+  bool get esAjuste => categoria == categoriaAjuste.clave;
 }
 
 class ResumenPersona {
@@ -172,7 +181,7 @@ class Resumen {
       if (m.tipo == TipoMovimiento.ahorro && m.fecha.isBefore(finDeMes)) {
         ahorroAcumulado += m.monto;
       }
-      if (!m.esDelMes(mes)) continue;
+      if (!m.esDelMes(mes) || m.esAjuste) continue;
       final persona = porPersona.putIfAbsent(m.usuarioId, ResumenPersona.new);
       switch (m.tipo) {
         case TipoMovimiento.ingreso:
@@ -270,7 +279,7 @@ class ResumenPlan {
         ..previsto += p.monto
         ..partidas.add(p);
     }
-    for (final m in movimientos.where((m) => m.esDelMes(mes))) {
+    for (final m in movimientos.where((m) => m.esDelMes(mes) && !m.esAjuste)) {
       // En el ahorro solo cuenta lo guardado contra lo previsto.
       final categoria = m.tipo == TipoMovimiento.ahorro ? 'guardar' : m.categoria;
       linea(m.tipo, categoria).real += m.monto;
@@ -399,6 +408,8 @@ class OperacionDeuda {
   );
 
   bool esDelMes(DateTime mes) => fecha.year == mes.year && fecha.month == mes.month;
+
+  bool get esAjuste => nota == notaAjuste;
 }
 
 /// Nombre con el que se muestra el dinero que no está en ninguna cuenta.
@@ -478,7 +489,7 @@ class Disponible {
     DateTime mes,
   ) {
     var debito = 0.0, gastosConTarjeta = 0.0, pagos = 0.0;
-    for (final m in movimientos.where((m) => m.esDelMes(mes))) {
+    for (final m in movimientos.where((m) => m.esDelMes(mes) && !m.esAjuste)) {
       switch (m.tipo) {
         case TipoMovimiento.ingreso:
           debito += m.monto;
@@ -489,7 +500,7 @@ class Disponible {
           if (m.deudaId != null) gastosConTarjeta += m.monto;
       }
     }
-    for (final o in operaciones.where((o) => o.esPago && o.esDelMes(mes))) {
+    for (final o in operaciones.where((o) => o.esPago && o.esDelMes(mes) && !o.esAjuste)) {
       pagos += o.monto;
     }
     var credito = 0.0, limiteTotal = 0.0;

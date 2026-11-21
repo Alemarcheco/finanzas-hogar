@@ -4,6 +4,7 @@ import '../datos.dart';
 import '../formato.dart';
 import '../modelo.dart';
 import '../widgets/pedir_cuenta.dart';
+import '../widgets/pedir_saldo.dart';
 import 'editar_movimiento.dart';
 import 'resumen.dart';
 
@@ -329,7 +330,29 @@ class PantallaDetalleDeuda extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 4),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                icon: const Icon(Icons.tune),
+                label: const Text('Ajustar a lo que dice el banco'),
+                onPressed: () async {
+                  final mensajero = ScaffoldMessenger.of(context);
+                  final real = await pedirSaldoReal(
+                    context,
+                    titulo: deuda.nombre,
+                    pregunta: '¿Cuánto se debe de verdad?',
+                    saldoApp: datos.saldoDeuda(deuda),
+                    moneda: datos.hogar!.moneda,
+                  );
+                  if (real == null) return;
+                  try {
+                    await datos.ajustarDeuda(deuda, real);
+                  } catch (e) {
+                    mensajero.showSnackBar(SnackBar(content: Text(mensajeDeError(e))));
+                  }
+                },
+              ),
+            ),
             Text(
               deuda.tipo == TipoDeuda.tarjeta
                   ? '"Anotar pago" baja lo que se debe. Las compras se suman solas si al anotar el gasto eliges '
